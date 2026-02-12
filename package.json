@@ -1,0 +1,20 @@
+{
+  "name": "library-management-system",
+  "version": "1.0.0",
+  "description": "Comprehensive Library Management System",
+  "private": true,
+  "scripts": {
+    "build": "cd backend && npm run build && cd ../frontend && npm run build",
+    "start": "cd backend && npm run start:prod",
+    "dev": "concurrently \"cd backend && npm run start:dev\" \"cd frontend && npm run dev\"",
+    "migration:run": "cd backend && npx prisma migrate deploy",
+    "migration:generate": "cd backend && npx prisma migrate dev",
+    "seed": "cd backend && npx prisma db seed",
+    "test": "cd backend && npm run test",
+    "test:e2e": "cd backend && npm run test:e2e",
+    "lint": "cd backend && npm run lint && cd ../frontend && npm run lint"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
