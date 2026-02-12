@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { UserPlus, Eye, Pencil, UserX, Filter } from 'lucide-react';
+import { UserPlus, Pencil, UserX, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { memberService } from '@/services/member.service';
@@ -138,12 +138,9 @@ export default function MembersListPage() {
               .toUpperCase()}
           </div>
           <div>
-            <Link
-              to={`/members/${member.id}`}
-              className="font-medium text-gray-900 hover:text-primary-600"
-            >
+            <span className="font-medium text-gray-900">
               {member.fullName}
-            </Link>
+            </span>
           </div>
         </div>
       ),
@@ -209,16 +206,6 @@ export default function MembersListPage() {
       className: 'text-right',
       render: (member: Member) => (
         <div className="flex items-center justify-end gap-1">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/members/${member.id}`);
-            }}
-            className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-primary-600"
-            title="View details"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
           {isStaff && (
             <button
               onClick={(e) => {

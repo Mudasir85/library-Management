@@ -19,7 +19,6 @@ const BulkImportPage = React.lazy(() => import('@/pages/books/BulkImportPage'));
 // Members
 const MembersListPage = React.lazy(() => import('@/pages/members/MembersListPage'));
 const MemberFormPage = React.lazy(() => import('@/pages/members/MemberFormPage'));
-const MemberDetailPage = React.lazy(() => import('@/pages/members/MemberDetailPage'));
 
 // Transactions
 const TransactionsPage = React.lazy(() => import('@/pages/transactions/TransactionsPage'));
@@ -59,7 +58,6 @@ export default function App() {
           {/* Members */}
           <Route path="members" element={<MembersListPage />} />
           <Route path="members/new" element={<MemberFormPage />} />
-          <Route path="members/:id" element={<MemberDetailPage />} />
           <Route path="members/:id/edit" element={<MemberFormPage />} />
 
           {/* Transactions */}

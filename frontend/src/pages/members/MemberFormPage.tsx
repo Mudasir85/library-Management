@@ -130,13 +130,13 @@ export default function MemberFormPage() {
       }
 
       if (isEditMode && id) {
-        const response = await memberService.update(id, payload);
+        await memberService.update(id, payload);
         toast.success('Member updated successfully.');
-        navigate(`/members/${response.data.id}`);
+        navigate('/members');
       } else {
-        const response = await memberService.create(payload);
+        await memberService.create(payload);
         toast.success('Member created successfully.');
-        navigate(`/members/${response.data.id}`);
+        navigate('/members');
       }
     } catch (error: unknown) {
       const message =
@@ -160,11 +160,11 @@ export default function MemberFormPage() {
       {/* Back navigation */}
       <div>
         <Link
-          to={isEditMode ? `/members/${id}` : '/members'}
+          to="/members"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-700"
         >
           <ArrowLeft className="h-4 w-4" />
-          {isEditMode ? 'Back to Member' : 'Back to Members'}
+          Back to Members
         </Link>
       </div>
 
@@ -491,7 +491,7 @@ export default function MemberFormPage() {
         {/* Form Actions */}
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <Link
-            to={isEditMode ? `/members/${id}` : '/members'}
+            to="/members"
             className="btn-secondary text-center"
           >
             Cancel
