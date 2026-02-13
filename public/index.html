@@ -254,6 +254,7 @@
       const submitBtn = document.getElementById('submit-btn');
       const cancelBtn = document.getElementById('cancel-btn');
       const passwordInput = document.getElementById('password');
+      const phoneInput = document.getElementById('phone');
 
       let editingId = null;
       let usersCache = [];
@@ -275,6 +276,18 @@
       function clearMessage() {
         message.textContent = '';
         message.className = 'message';
+      }
+
+      function setSubmitting(isSubmitting) {
+        submitBtn.disabled = isSubmitting;
+        submitBtn.style.opacity = isSubmitting ? '0.7' : '1';
+        submitBtn.textContent = isSubmitting
+          ? editingId === null
+            ? 'Adding...'
+            : 'Updating...'
+          : editingId === null
+            ? 'Add User'
+            : 'Update User';
       }
 
       function validatePayload(payload, isEdit = false) {
@@ -416,6 +429,10 @@
         clearMessage();
       });
 
+      phoneInput.addEventListener('input', () => {
+        phoneInput.value = phoneInput.value.replace(/\D/g, '').slice(0, 10);
+      });
+
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
         clearMessage();
@@ -438,6 +455,7 @@
         const method = editingId === null ? 'POST' : 'PUT';
 
         try {
+          setSubmitting(true);
           const { response, data } = await requestJson(endpoint, {
             method,
             headers: { 'Content-Type': 'application/json' },
@@ -454,6 +472,8 @@
           await loadUsers();
         } catch (error) {
           setMessage('Request failed. Please try again.', true);
+        } finally {
+          setSubmitting(false);
         }
       });
 

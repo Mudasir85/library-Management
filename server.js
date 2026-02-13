@@ -99,6 +99,7 @@ function validateUserInput(input, isEdit = false) {
 }
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use((error, req, res, next) => {
   if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
     res.status(400).json({ message: 'Invalid JSON payload.' });
@@ -236,3 +237,15 @@ initDb()
     console.error('Failed to initialize database:', error);
     process.exit(1);
   });
+
+function closeDbAndExit() {
+  db.close((error) => {
+    if (error) {
+      console.error('Error while closing database:', error);
+    }
+    process.exit(0);
+  });
+}
+
+process.on('SIGINT', closeDbAndExit);
+process.on('SIGTERM', closeDbAndExit);
