@@ -258,6 +258,15 @@
       let editingId = null;
       let usersCache = [];
 
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll('&', '&amp;')
+          .replaceAll('<', '&lt;')
+          .replaceAll('>', '&gt;')
+          .replaceAll('"', '&quot;')
+          .replaceAll("'", '&#39;');
+      }
+
       function setMessage(text, isError = false) {
         message.textContent = text;
         message.className = `message ${isError ? 'error' : 'success'}`;
@@ -303,15 +312,21 @@
         const users = await res.json();
         usersCache = users;
 
+        if (users.length === 0) {
+          usersBody.innerHTML =
+            '<tr><td colspan="6" style="text-align:center;color:#6b7280;">No users found.</td></tr>';
+          return;
+        }
+
         usersBody.innerHTML = users
           .map(
             (user) => `
               <tr>
                 <td>${user.id}</td>
-                <td>${user.full_name}</td>
-                <td>${user.email}</td>
-                <td>${user.phone}</td>
-                <td>${user.role}</td>
+                <td>${escapeHtml(user.full_name)}</td>
+                <td>${escapeHtml(user.email)}</td>
+                <td>${escapeHtml(user.phone)}</td>
+                <td>${escapeHtml(user.role)}</td>
                 <td>
                   <div class="actions">
                     <button class="secondary" onclick="editUser(${user.id})">Edit</button>

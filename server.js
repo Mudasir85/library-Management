@@ -11,6 +11,16 @@ const db = new sqlite3.Database(DB_PATH);
 const ALLOWED_ROLES = ['Admin', 'User', 'Guest'];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\d{10}$/;
+const CREATE_USERS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    full_name TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    phone TEXT NOT NULL,
+    role TEXT NOT NULL,
+    password TEXT NOT NULL
+  )
+`;
 
 function run(sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -49,16 +59,7 @@ function get(sql, params = []) {
 }
 
 async function initDb() {
-  await run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY,
-      full_name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      phone TEXT NOT NULL,
-      role TEXT NOT NULL,
-      password TEXT NOT NULL
-    )
-  `);
+  await run(CREATE_USERS_TABLE_SQL);
 }
 
 function validateUserInput(input, isEdit = false) {
@@ -137,6 +138,10 @@ app.post(['/api/users', '/users'], async (req, res) => {
 
     res.status(201).json(user);
   } catch (error) {
+    if (error && error.code === 'SQLITE_CONSTRAINT') {
+      res.status(409).json({ message: 'Email already exists.' });
+      return;
+    }
     res.status(500).json({ message: 'Failed to create user.' });
   }
 });
