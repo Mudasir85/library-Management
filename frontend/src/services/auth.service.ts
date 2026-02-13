@@ -14,8 +14,17 @@ export const authService = {
     fullName: string;
     role: string;
   }): Promise<{ data: User }> {
-    const { data } = await api.post('/auth/register', userData);
-    return data;
+    try {
+      const { data } = await api.post('/users', userData);
+      return data;
+    } catch (error: any) {
+      if (error?.response?.status !== 404) {
+        throw error;
+      }
+
+      const { data } = await api.post('/auth/register', userData);
+      return data;
+    }
   },
 
   async getProfile(): Promise<User> {
