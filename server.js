@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
 const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
@@ -12,6 +13,11 @@ const ALLOWED_ROLES = ['Admin', 'User', 'Guest'];
 const ALLOWED_ROLE_SET = new Set(ALLOWED_ROLES);
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^\d{10}$/;
+const AUTH_USERNAME = process.env.LIBRARY_ADMIN_USERNAME || 'admin';
+const AUTH_PASSWORD = process.env.LIBRARY_ADMIN_PASSWORD || 'password123';
+const SESSION_COOKIE_NAME = 'library_session';
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
 const CREATE_USERS_TABLE_SQL = `
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,6 +28,8 @@ const CREATE_USERS_TABLE_SQL = `
     password TEXT NOT NULL CHECK(length(password) >= 8)
   )
 `;
+
+const sessions = new Map();
 
 function run(sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -57,6 +65,102 @@ function get(sql, params = []) {
       resolve(row);
     });
   });
+}
+
+function parseCookies(cookieHeader = '') {
+  return cookieHeader
+    .split(';')
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .reduce((acc, part) => {
+      const separatorIndex = part.indexOf('=');
+      if (separatorIndex < 0) {
+        return acc;
+      }
+
+      const key = part.slice(0, separatorIndex).trim();
+      const value = decodeURIComponent(part.slice(separatorIndex + 1).trim());
+      if (key) {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
+}
+
+function createSession(username) {
+  const token = crypto.randomBytes(32).toString('hex');
+  sessions.set(token, {
+    username,
+    expiresAt: Date.now() + SESSION_TTL_MS
+  });
+  return token;
+}
+
+function getValidSession(token) {
+  if (!token) {
+    return null;
+  }
+
+  const session = sessions.get(token);
+  if (!session) {
+    return null;
+  }
+
+  if (session.expiresAt <= Date.now()) {
+    sessions.delete(token);
+    return null;
+  }
+
+  return session;
+}
+
+function clearSession(token) {
+  if (token) {
+    sessions.delete(token);
+  }
+}
+
+function getSessionFromRequest(req) {
+  const cookies = parseCookies(req.headers.cookie || '');
+  const token = cookies[SESSION_COOKIE_NAME];
+  const session = getValidSession(token);
+  return { token, session };
+}
+
+function setSessionCookie(res, token) {
+  res.setHeader(
+    'Set-Cookie',
+    `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`
+  );
+}
+
+function clearSessionCookie(res) {
+  res.setHeader(
+    'Set-Cookie',
+    `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`
+  );
+}
+
+function requirePageAuth(req, res, next) {
+  const { session } = getSessionFromRequest(req);
+  if (!session) {
+    res.redirect('/login');
+    return;
+  }
+
+  req.session = session;
+  next();
+}
+
+function requireApiAuth(req, res, next) {
+  const { session } = getSessionFromRequest(req);
+  if (!session) {
+    res.status(401).json({ message: 'Unauthorized. Please login first.' });
+    return;
+  }
+
+  req.session = session;
+  next();
 }
 
 async function initDb() {
@@ -108,9 +212,60 @@ app.use((error, req, res, next) => {
   }
   next(error);
 });
-app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/user-details/:id', (req, res) => {
+app.get('/login', (req, res) => {
+  const { session } = getSessionFromRequest(req);
+  if (session) {
+    res.redirect('/');
+    return;
+  }
+
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const username = typeof req.body.username === 'string' ? req.body.username.trim() : '';
+  const password = typeof req.body.password === 'string' ? req.body.password : '';
+
+  if (!username || !password) {
+    res.status(400).json({ message: 'Username and password are required.' });
+    return;
+  }
+
+  if (username !== AUTH_USERNAME || password !== AUTH_PASSWORD) {
+    res.status(401).json({ message: 'Invalid username or password.' });
+    return;
+  }
+
+  const token = createSession(username);
+  setSessionCookie(res, token);
+  res.json({ message: 'Login successful.', user: { username } });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const { token } = getSessionFromRequest(req);
+  clearSession(token);
+  clearSessionCookie(res);
+  res.json({ message: 'Logout successful.' });
+});
+
+app.get('/api/auth/session', (req, res) => {
+  const { session } = getSessionFromRequest(req);
+  if (!session) {
+    res.status(401).json({ authenticated: false });
+    return;
+  }
+
+  res.json({ authenticated: true, user: { username: session.username } });
+});
+
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
+
+app.get('/', requirePageAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/user-details/:id', requirePageAuth, (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).send('Invalid user id.');
@@ -120,7 +275,7 @@ app.get('/user-details/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'user-details.html'));
 });
 
-app.get(['/api/users', '/users'], async (req, res) => {
+app.get(['/api/users', '/users'], requireApiAuth, async (req, res) => {
   try {
     const users = await all(
       'SELECT id, full_name, email, phone, role FROM users ORDER BY id DESC'
@@ -131,7 +286,7 @@ app.get(['/api/users', '/users'], async (req, res) => {
   }
 });
 
-app.get('/api/users/:id', async (req, res) => {
+app.get('/api/users/:id', requireApiAuth, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ message: 'Invalid user id.' });
@@ -155,7 +310,7 @@ app.get('/api/users/:id', async (req, res) => {
   }
 });
 
-app.post(['/api/users', '/users'], async (req, res) => {
+app.post(['/api/users', '/users'], requireApiAuth, async (req, res) => {
   const { errors, value } = validateUserInput(req.body, false);
   if (errors.length > 0) {
     res.status(400).json({ message: errors.join(' ') });
@@ -189,7 +344,7 @@ app.post(['/api/users', '/users'], async (req, res) => {
   }
 });
 
-app.put(['/api/users/:id', '/users/:id'], async (req, res) => {
+app.put(['/api/users/:id', '/users/:id'], requireApiAuth, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ message: 'Invalid user id.' });
@@ -237,7 +392,7 @@ app.put(['/api/users/:id', '/users/:id'], async (req, res) => {
   }
 });
 
-app.delete(['/api/users/:id', '/users/:id'], async (req, res) => {
+app.delete(['/api/users/:id', '/users/:id'], requireApiAuth, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ message: 'Invalid user id.' });
@@ -258,29 +413,17 @@ app.delete(['/api/users/:id', '/users/:id'], async (req, res) => {
   }
 });
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 initDb()
   .then(() => {
     app.listen(PORT, () => {
+      // eslint-disable-next-line no-console
       console.log(`Server running at http://localhost:${PORT}`);
+      // eslint-disable-next-line no-console
+      console.log(`Login with username "${AUTH_USERNAME}" and password "${AUTH_PASSWORD}"`);
     });
   })
   .catch((error) => {
+    // eslint-disable-next-line no-console
     console.error('Failed to initialize database:', error);
     process.exit(1);
   });
-
-function closeDbAndExit() {
-  db.close((error) => {
-    if (error) {
-      console.error('Error while closing database:', error);
-    }
-    process.exit(0);
-  });
-}
-
-process.on('SIGINT', closeDbAndExit);
-process.on('SIGTERM', closeDbAndExit);
