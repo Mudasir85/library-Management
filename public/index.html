@@ -365,6 +365,7 @@
                 <td>${escapeHtml(user.role)}</td>
                 <td>
                   <div class="actions">
+                    <button class="secondary" onclick="viewUser(${user.id})">View</button>
                     <button class="secondary" onclick="editUser(${user.id})">Edit</button>
                     <button class="danger" onclick="deleteUser(${user.id})">Delete</button>
                   </div>
@@ -385,6 +386,10 @@
         passwordInput.required = true;
         passwordInput.placeholder = '';
       }
+
+      window.viewUser = function viewUser(id) {
+        window.location.href = `/user-details.html?id=${id}`;
+      };
 
       window.editUser = function editUser(id) {
         const user = usersCache.find((u) => u.id === id);

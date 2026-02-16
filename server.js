@@ -121,6 +121,30 @@ app.get(['/api/users', '/users'], async (req, res) => {
   }
 });
 
+app.get('/api/users/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ message: 'Invalid user id.' });
+    return;
+  }
+
+  try {
+    const user = await get(
+      'SELECT id, full_name, email, phone, role, password FROM users WHERE id = ?',
+      [id]
+    );
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found.' });
+      return;
+    }
+
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to fetch user details.' });
+  }
+});
+
 app.post(['/api/users', '/users'], async (req, res) => {
   const { errors, value } = validateUserInput(req.body, false);
   if (errors.length > 0) {
