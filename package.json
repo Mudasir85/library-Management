@@ -1,27 +1,15 @@
 {
   "name": "library-management-system",
   "version": "1.0.0",
-  "description": "Library Management System - User CRUD Module",
-  "private": true,
+  "description": "User module with add, edit, delete, and list users",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "migrate": "node migrate.js",
-    "build": "cd backend && npm run build && cd ../frontend && npm run build",
-    "dev:full": "concurrently \"cd backend && npm run start:dev\" \"cd frontend && npm run dev\"",
-    "start:full": "cd backend && npm run start:prod",
-    "migration:run": "cd backend && npx prisma migrate deploy",
-    "migration:generate": "cd backend && npx prisma migrate dev",
-    "seed": "cd backend && npx prisma db seed",
-    "test": "cd backend && npm run test",
-    "test:e2e": "cd backend && npm run test:e2e",
-    "lint": "cd backend && npm run lint && cd ../frontend && npm run lint"
+    "migrate": "node server.js"
   },
   "dependencies": {
-    "express": "^4.21.2",
+    "express": "^4.18.2",
     "sqlite3": "^5.1.7"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
   }
 }
