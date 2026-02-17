@@ -502,7 +502,7 @@
       <div class="sidebar-section">Other</div>
       <ul class="sidebar-nav">
         <li>
-          <a href="contact.html">
+          <a href="/mohit/contact.html">
             <span class="nav-icon">&#9993;</span> Contact Us
           </a>
         </li>
@@ -718,18 +718,20 @@
   </div><!-- /.layout -->
 
 <script>
-  // ============ AUTH CHECK ============
-  if (sessionStorage.getItem('loggedIn') !== 'true') {
-    window.location.href = 'login.html';
-  }
+  // ============ CONFIG ============
+  const BASE = '/mohit';
 
-  const loggedInUser = sessionStorage.getItem('loggedInUser') || 'Admin';
-  document.getElementById('headerUser').textContent = 'Welcome, ' + loggedInUser;
+  // Server already protects this page via cookie auth (requireAuth middleware).
+  // No client-side auth check needed — if we're here, we're authenticated.
+
+  document.getElementById('headerUser').textContent = 'Welcome, Admin';
 
   function logout() {
+    // Clear cookie by requesting a page without credentials, then redirect
+    document.cookie = 'session_token=; Path=/; Max-Age=0';
     sessionStorage.removeItem('loggedIn');
     sessionStorage.removeItem('loggedInUser');
-    window.location.href = 'login.html';
+    window.location.href = BASE + '/login.html';
   }
 
   // ============ SIDEBAR NAVIGATION ============
@@ -783,9 +785,9 @@
   async function loadDashboard() {
     try {
       const [statsRes, usersRes, booksRes] = await Promise.all([
-        fetch('/api/dashboard/stats'),
-        fetch('/api/users'),
-        fetch('/api/books')
+        fetch(BASE + '/api/dashboard/stats'),
+        fetch(BASE + '/api/users'),
+        fetch(BASE + '/api/books')
       ]);
 
       const stats = await statsRes.json();
@@ -822,7 +824,7 @@
           <tr>
             <td>${b.id}</td>
             <td>${b.book_image
-              ? '<img src="' + escapeHtml(b.book_image) + '" class="book-thumb" alt="Book">'
+              ? '<img src="' + BASE + escapeHtml(b.book_image) + '" class="book-thumb" alt="Book">'
               : '<div class="book-thumb-placeholder">&#128214;</div>'}</td>
             <td>${escapeHtml(b.book_name)}</td>
             <td>${escapeHtml(b.author_name)}</td>
@@ -838,7 +840,7 @@
   // ============ USERS MANAGEMENT ============
   async function loadUsers() {
     try {
-      const res = await fetch('/api/users');
+      const res = await fetch(BASE + '/api/users');
       const users = await res.json();
       const tbody = document.getElementById('usersTableBody');
 
@@ -896,10 +898,10 @@
 
     try {
       const isEdit = !!id;
-      const url = isEdit ? '/api/users/' + id : '/api/users';
+      const url = isEdit ? BASE + '/api/users/' + id : BASE + '/api/users';
       const method = isEdit ? 'PUT' : 'POST';
 
-      const res = await authFetch(url, {
+      const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
@@ -939,7 +941,7 @@
     if (!confirm('Are you sure you want to delete "' + name + '"?')) return;
 
     try {
-      const res = await fetch('/api/users/' + id, { method: 'DELETE' });
+      const res = await fetch(BASE + '/api/users/' + id, { method: 'DELETE' });
       const result = await res.json();
 
       if (!res.ok) {
@@ -967,7 +969,7 @@
   // ============ BOOKS MANAGEMENT ============
   async function loadBooks() {
     try {
-      const res = await fetch('/api/books');
+      const res = await fetch(BASE + '/api/books');
       const books = await res.json();
       const tbody = document.getElementById('booksTableBody');
 
@@ -980,7 +982,7 @@
         <tr>
           <td>${b.id}</td>
           <td>${b.book_image
-            ? '<img src="' + escapeHtml(b.book_image) + '" class="book-thumb" alt="Book">'
+            ? '<img src="' + BASE + escapeHtml(b.book_image) + '" class="book-thumb" alt="Book">'
             : '<div class="book-thumb-placeholder">&#128214;</div>'}</td>
           <td>${escapeHtml(b.book_name)}</td>
           <td>${escapeHtml(b.class)}</td>
@@ -1056,7 +1058,7 @@
 
     try {
       const isEdit = !!id;
-      const url = isEdit ? '/api/books/' + id : '/api/books';
+      const url = isEdit ? BASE + '/api/books/' + id : BASE + '/api/books';
       const method = isEdit ? 'PUT' : 'POST';
 
       const res = await fetch(url, { method, body: formData });
@@ -1077,7 +1079,7 @@
 
   async function editBook(id) {
     try {
-      const res = await fetch('/api/books');
+      const res = await fetch(BASE + '/api/books');
       const books = await res.json();
       const book = books.find(b => b.id === id);
       if (!book) return;
@@ -1113,7 +1115,7 @@
     if (!confirm('Are you sure you want to delete "' + name + '"?')) return;
 
     try {
-      const res = await fetch('/api/books/' + id, { method: 'DELETE' });
+      const res = await fetch(BASE + '/api/books/' + id, { method: 'DELETE' });
       const result = await res.json();
 
       if (!res.ok) {
