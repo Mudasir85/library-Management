@@ -1,9 +1,42 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Multer setup for book image uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    cb(null, 'book-' + uniqueSuffix + ext);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|gif|webp/;
+    const extOk = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimeOk = allowedTypes.test(file.mimetype.split('/')[1]);
+    if (extOk && mimeOk) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files (jpg, png, gif, webp) are allowed'));
+    }
+  }
+});
 
 // Middleware
 app.use(express.json());
@@ -47,6 +80,19 @@ db.run(`
   )
 `);
 
+// Create books table
+db.run(`
+  CREATE TABLE IF NOT EXISTS books (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_name TEXT NOT NULL,
+    class TEXT NOT NULL,
+    author_name TEXT NOT NULL,
+    publisher_name TEXT NOT NULL,
+    book_image TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
 // Default admin credentials
 const ADMIN_USERNAME = 'admin';
 const ADMIN_PASSWORD = 'admin123';
@@ -64,6 +110,21 @@ app.post('/api/login', (req, res) => {
   }
 
   return res.status(401).json({ error: 'Invalid username or password' });
+});
+
+// GET /api/dashboard/stats - Dashboard statistics
+app.get('/api/dashboard/stats', (req, res) => {
+  const stats = {};
+  db.get('SELECT COUNT(*) as count FROM users', [], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch stats' });
+    stats.totalUsers = row.count;
+
+    db.get('SELECT COUNT(*) as count FROM books', [], (err2, row2) => {
+      if (err2) return res.status(500).json({ error: 'Failed to fetch stats' });
+      stats.totalBooks = row2.count;
+      res.json(stats);
+    });
+  });
 });
 
 // Validation helpers
@@ -142,7 +203,6 @@ app.put('/api/users/:id', (req, res) => {
 
   const { full_name, email, phone, role, password } = req.body;
 
-  // Check if user exists
   db.get('SELECT id FROM users WHERE id = ?', [id], (err, row) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
@@ -151,7 +211,6 @@ app.put('/api/users/:id', (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    // Build update query based on whether password is provided
     let query, params;
     if (password && password.length > 0) {
       query = 'UPDATE users SET full_name = ?, email = ?, phone = ?, role = ?, password = ? WHERE id = ?';
@@ -187,6 +246,144 @@ app.delete('/api/users/:id', (req, res) => {
     res.json({ message: 'User deleted successfully' });
   });
 });
+
+// --- BOOKS API ---
+
+// GET /api/books - List all books
+app.get('/api/books', (req, res) => {
+  db.all('SELECT * FROM books ORDER BY id DESC', [], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: 'Failed to fetch books' });
+    }
+    res.json(rows);
+  });
+});
+
+// POST /api/books - Add a book
+app.post('/api/books', upload.single('book_image'), (req, res) => {
+  const { book_name, class: bookClass, author_name, publisher_name } = req.body;
+  const errors = [];
+
+  if (!book_name || book_name.trim().length < 2 || book_name.trim().length > 100) {
+    errors.push('Book Name must be between 2 and 100 characters');
+  }
+  if (!bookClass || bookClass.trim().length < 1 || bookClass.trim().length > 50) {
+    errors.push('Class is required (max 50 characters)');
+  }
+  if (!author_name || author_name.trim().length < 2 || author_name.trim().length > 100) {
+    errors.push('Author Name must be between 2 and 100 characters');
+  }
+  if (!publisher_name || publisher_name.trim().length < 2 || publisher_name.trim().length > 100) {
+    errors.push('Publisher Name must be between 2 and 100 characters');
+  }
+
+  if (errors.length > 0) {
+    // Clean up uploaded file if validation fails
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: errors.join(', ') });
+  }
+
+  const bookImage = req.file ? '/uploads/' + req.file.filename : null;
+
+  db.run(
+    'INSERT INTO books (book_name, class, author_name, publisher_name, book_image) VALUES (?, ?, ?, ?, ?)',
+    [book_name.trim(), bookClass.trim(), author_name.trim(), publisher_name.trim(), bookImage],
+    function (err) {
+      if (err) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(500).json({ error: 'Failed to add book' });
+      }
+      res.status(201).json({
+        id: this.lastID,
+        book_name: book_name.trim(),
+        class: bookClass.trim(),
+        author_name: author_name.trim(),
+        publisher_name: publisher_name.trim(),
+        book_image: bookImage
+      });
+    }
+  );
+});
+
+// PUT /api/books/:id - Edit a book
+app.put('/api/books/:id', upload.single('book_image'), (req, res) => {
+  const { id } = req.params;
+  const { book_name, class: bookClass, author_name, publisher_name } = req.body;
+  const errors = [];
+
+  if (!book_name || book_name.trim().length < 2 || book_name.trim().length > 100) {
+    errors.push('Book Name must be between 2 and 100 characters');
+  }
+  if (!bookClass || bookClass.trim().length < 1 || bookClass.trim().length > 50) {
+    errors.push('Class is required (max 50 characters)');
+  }
+  if (!author_name || author_name.trim().length < 2 || author_name.trim().length > 100) {
+    errors.push('Author Name must be between 2 and 100 characters');
+  }
+  if (!publisher_name || publisher_name.trim().length < 2 || publisher_name.trim().length > 100) {
+    errors.push('Publisher Name must be between 2 and 100 characters');
+  }
+
+  if (errors.length > 0) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: errors.join(', ') });
+  }
+
+  db.get('SELECT * FROM books WHERE id = ?', [id], (err, row) => {
+    if (err) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!row) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: 'Book not found' });
+    }
+
+    let bookImage = row.book_image;
+    if (req.file) {
+      // Delete old image if it exists
+      if (row.book_image) {
+        const oldPath = path.join(__dirname, 'public', row.book_image);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+      bookImage = '/uploads/' + req.file.filename;
+    }
+
+    db.run(
+      'UPDATE books SET book_name = ?, class = ?, author_name = ?, publisher_name = ?, book_image = ? WHERE id = ?',
+      [book_name.trim(), bookClass.trim(), author_name.trim(), publisher_name.trim(), bookImage, id],
+      function (err) {
+        if (err) {
+          return res.status(500).json({ error: 'Failed to update book' });
+        }
+        res.json({ message: 'Book updated successfully' });
+      }
+    );
+  });
+});
+
+// DELETE /api/books/:id - Delete a book
+app.delete('/api/books/:id', (req, res) => {
+  const { id } = req.params;
+
+  db.get('SELECT book_image FROM books WHERE id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!row) return res.status(404).json({ error: 'Book not found' });
+
+    // Delete associated image file
+    if (row.book_image) {
+      const imgPath = path.join(__dirname, 'public', row.book_image);
+      if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+    }
+
+    db.run('DELETE FROM books WHERE id = ?', [id], function (err) {
+      if (err) return res.status(500).json({ error: 'Failed to delete book' });
+      res.json({ message: 'Book deleted successfully' });
+    });
+  });
+});
+
+// --- CONTACTS API ---
 
 // GET /api/contacts - List all contact messages
 app.get('/api/contacts', (req, res) => {
@@ -246,6 +443,20 @@ app.delete('/api/contacts/:id', (req, res) => {
     }
     res.json({ message: 'Message deleted successfully' });
   });
+});
+
+// Multer error handling middleware
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'File size must be less than 5MB' });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+  if (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  next();
 });
 
 // Start server
