@@ -175,11 +175,6 @@
   </div>
 
 <script>
-  // If already logged in, redirect to dashboard
-  if (sessionStorage.getItem('loggedIn') === 'true') {
-    window.location.href = 'index.html';
-  }
-
   function showAlert(message) {
     const alert = document.getElementById('alert');
     alert.textContent = message;
@@ -199,7 +194,7 @@
     }
 
     try {
-      const res = await fetch('/api/login', {
+      const res = await fetch('/mohit/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
@@ -212,10 +207,8 @@
         return;
       }
 
-      // Store login state and redirect to dashboard
-      sessionStorage.setItem('loggedIn', 'true');
-      sessionStorage.setItem('loggedInUser', username);
-      window.location.href = 'index.html';
+      // Server sets httpOnly cookie, just redirect
+      window.location.href = '/mohit/index.html';
     } catch {
       showAlert('Login failed. Please try again.');
     }

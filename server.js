@@ -1,11 +1,16 @@
 const express = require('express');
+const crypto = require('crypto');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
+const BASE = '/mohit';
+
+// In-memory session store: { token: { username, createdAt } }
+const sessions = {};
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'public', 'uploads');
@@ -40,12 +45,66 @@ const upload = multer({
 
 // Middleware
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
-// Redirect root to login page
+// Parse cookies from request
+function parseCookies(req) {
+  const cookies = {};
+  const header = req.headers.cookie;
+  if (header) {
+    header.split(';').forEach(c => {
+      const [name, ...rest] = c.trim().split('=');
+      cookies[name] = rest.join('=');
+    });
+  }
+  return cookies;
+}
+
+// Check if request has a valid session
+function isAuthenticated(req) {
+  const cookies = parseCookies(req);
+  const token = cookies.session_token;
+  return token && sessions[token];
+}
+
+// Auth middleware - protect pages and API routes
+function requireAuth(req, res, next) {
+  if (isAuthenticated(req)) {
+    return next();
+  }
+  if (req.originalUrl.startsWith('/api/')) {
+    return res.status(401).json({ error: 'Unauthorized. Please login.' });
+  }
+  return res.redirect(BASE + '/login.html');
+}
+
+// Serve login.html publicly
 app.get('/', (req, res) => {
-  res.redirect('/login.html');
+  if (isAuthenticated(req)) {
+    return res.redirect(BASE + '/index.html');
+  }
+  res.redirect(BASE + '/login.html');
 });
+
+app.get('/login.html', (req, res) => {
+  if (isAuthenticated(req)) {
+    return res.redirect(BASE + '/index.html');
+  }
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// Protect index.html and contact.html - must be before static middleware
+app.get('/index.html', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/contact.html', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'contact.html'));
+});
+
+// Serve other static assets publicly (but index: false prevents auto-serving index.html)
+app.use(express.static(path.join(__dirname, 'public'), {
+  index: false
+}));
 
 // Database setup
 const db = new sqlite3.Database('./database.sqlite', (err) => {
@@ -97,7 +156,7 @@ db.run(`
 const ADMIN_USERNAME = 'admin';
 const ADMIN_PASSWORD = 'admin123';
 
-// POST /api/login - Authenticate user
+// POST /api/login - Authenticate user (public route)
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
 
@@ -106,6 +165,17 @@ app.post('/api/login', (req, res) => {
   }
 
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    // Create session token
+    const token = crypto.randomBytes(32).toString('hex');
+    sessions[token] = { username, createdAt: Date.now() };
+
+    // Set cookie (httpOnly so JS can't steal it)
+    res.cookie('session_token', token, {
+      httpOnly: true,
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
+
     return res.json({ message: 'Login successful', username });
   }
 
