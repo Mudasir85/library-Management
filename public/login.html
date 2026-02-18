@@ -207,7 +207,9 @@
         return;
       }
 
-      // Server sets httpOnly cookie, just redirect
+      // Server sets httpOnly cookie; also set sessionStorage for client-side check
+      sessionStorage.setItem('loggedIn', 'true');
+      sessionStorage.setItem('loggedInUser', result.username);
       window.location.href = '/mohit/index.html';
     } catch {
       showAlert('Login failed. Please try again.');
