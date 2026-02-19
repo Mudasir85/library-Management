@@ -179,12 +179,24 @@ db.run(`
     book_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
     issue_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    due_date DATETIME,
     return_date DATETIME,
     status TEXT NOT NULL DEFAULT 'Issued',
     FOREIGN KEY (book_id) REFERENCES books(id),
     FOREIGN KEY (user_id) REFERENCES users(id)
   )
 `);
+
+// Add due_date column if it doesn't exist (for existing databases)
+db.all("PRAGMA table_info(issued_books)", [], (err, columns) => {
+  if (err) return;
+  const colNames = columns.map(c => c.name);
+  if (!colNames.includes('due_date')) {
+    db.run("ALTER TABLE issued_books ADD COLUMN due_date DATETIME");
+    // Set due_date for existing records that don't have it (14 days from issue_date)
+    db.run("UPDATE issued_books SET due_date = datetime(issue_date, '+14 days') WHERE due_date IS NULL");
+  }
+});
 
 // Default admin credentials
 const ADMIN_USERNAME = 'admin';
@@ -540,7 +552,7 @@ app.delete('/api/books/:id', (req, res) => {
 // GET /api/issued-books - List all issued books
 app.get('/api/issued-books', (req, res) => {
   db.all(`
-    SELECT ib.id, ib.book_id, ib.user_id, ib.issue_date, ib.return_date, ib.status,
+    SELECT ib.id, ib.book_id, ib.user_id, ib.issue_date, ib.due_date, ib.return_date, ib.status,
            b.book_name, b.author_name,
            u.full_name as user_name, u.email as user_email
     FROM issued_books ib
@@ -552,6 +564,27 @@ app.get('/api/issued-books', (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch issued books' });
     }
     res.json(rows);
+  });
+});
+
+// GET /api/issued-books/summary - Issue summary stats
+app.get('/api/issued-books/summary', (req, res) => {
+  const summary = {};
+  db.get("SELECT COUNT(*) as count FROM issued_books WHERE status = 'Issued'", [], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch summary' });
+    summary.totalIssued = row ? row.count : 0;
+
+    db.get("SELECT COUNT(*) as count FROM issued_books WHERE status = 'Returned'", [], (err2, row2) => {
+      if (err2) return res.status(500).json({ error: 'Failed to fetch summary' });
+      summary.totalReturned = row2 ? row2.count : 0;
+
+      db.get("SELECT COUNT(*) as count FROM issued_books WHERE status = 'Issued' AND due_date < datetime('now')", [], (err3, row3) => {
+        if (err3) return res.status(500).json({ error: 'Failed to fetch summary' });
+        summary.totalOverdue = row3 ? row3.count : 0;
+
+        res.json(summary);
+      });
+    });
   });
 });
 
@@ -587,14 +620,21 @@ app.post('/api/issued-books', (req, res) => {
           return res.status(400).json({ error: 'This user already has this book issued' });
         }
 
-        // Issue the book - insert record and decrease available_copies
-        db.run('INSERT INTO issued_books (book_id, user_id, status) VALUES (?, ?, ?)', [book_id, user_id, 'Issued'], function(err) {
+        // Issue the book - set issue_date to today and due_date to 14 days from today
+        const today = new Date();
+        const dueDate = new Date(today);
+        dueDate.setDate(dueDate.getDate() + 14);
+        const issueDateStr = today.toISOString().slice(0, 19).replace('T', ' ');
+        const dueDateStr = dueDate.toISOString().slice(0, 19).replace('T', ' ');
+
+        db.run('INSERT INTO issued_books (book_id, user_id, issue_date, due_date, status) VALUES (?, ?, ?, ?, ?)', [book_id, user_id, issueDateStr, dueDateStr, 'Issued'], function(err) {
           if (err) return res.status(500).json({ error: 'Failed to issue book' });
 
+          const insertedId = this.lastID;
           db.run('UPDATE books SET available_copies = available_copies - 1 WHERE id = ?', [book_id], function(err) {
             if (err) return res.status(500).json({ error: 'Failed to update book availability' });
 
-            res.status(201).json({ id: this.lastID, message: 'Book issued successfully' });
+            res.status(201).json({ id: insertedId, message: 'Book issued successfully' });
           });
         });
       });

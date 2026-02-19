@@ -446,6 +446,16 @@
       color: #155724;
     }
 
+    .badge-overdue {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #f8d7da;
+      color: #721c24;
+    }
+
     .btn-return {
       background: #28a745;
       color: #fff;
@@ -454,6 +464,56 @@
     }
 
     .btn-return:hover { background: #218838; }
+
+    .search-box {
+      padding: 10px 14px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      width: 300px;
+      max-width: 100%;
+      transition: border-color 0.2s;
+    }
+
+    .search-box:focus {
+      outline: none;
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
+    }
+
+    .issue-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .summary-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .summary-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    .summary-icon.s-issued { background: #fff3cd; color: #856404; }
+    .summary-icon.s-returned { background: #d4edda; color: #155724; }
+    .summary-icon.s-overdue { background: #f8d7da; color: #721c24; }
+
+    .summary-info h3 { font-size: 24px; font-weight: 700; color: #333; }
+    .summary-info p { font-size: 12px; color: #888; margin-top: 2px; }
 
     /* Welcome section */
     .welcome-card {
@@ -502,6 +562,8 @@
 
       .form-grid { grid-template-columns: 1fr; }
       .dashboard-grid { grid-template-columns: 1fr; }
+      .issue-summary-grid { grid-template-columns: 1fr; }
+      .search-box { width: 100%; }
       .header h1 { font-size: 16px; }
       .user-info { display: none; }
     }
@@ -787,6 +849,31 @@
       <div id="section-issue-books" class="section">
         <div id="issueAlert" class="alert"></div>
 
+        <!-- Issue Summary Cards -->
+        <div class="issue-summary-grid">
+          <div class="summary-card">
+            <div class="summary-icon s-issued">&#128196;</div>
+            <div class="summary-info">
+              <h3 id="summaryIssued">0</h3>
+              <p>Currently Issued</p>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-icon s-returned">&#9989;</div>
+            <div class="summary-info">
+              <h3 id="summaryReturned">0</h3>
+              <p>Returned</p>
+            </div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-icon s-overdue">&#9888;</div>
+            <div class="summary-info">
+              <h3 id="summaryOverdue">0</h3>
+              <p>Overdue</p>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <h2 id="issueFormTitle">Issue a Book</h2>
           <form id="issueForm">
@@ -803,6 +890,14 @@
                   <option value="">Select a User</option>
                 </select>
               </div>
+              <div class="form-group">
+                <label for="issueDate">Issue Date</label>
+                <input type="text" id="issueDate" readonly style="background:#f0f2f5; cursor:not-allowed;">
+              </div>
+              <div class="form-group">
+                <label for="dueDate">Due Date (14 days)</label>
+                <input type="text" id="dueDate" readonly style="background:#f0f2f5; cursor:not-allowed;">
+              </div>
               <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Issue Book</button>
               </div>
@@ -813,6 +908,7 @@
         <div class="card">
           <div class="card-header">
             <h2>Issued Books</h2>
+            <input type="text" class="search-box" id="issueSearchBox" placeholder="Search by book, user, email, status..." oninput="filterIssuedBooks()">
           </div>
           <div class="table-wrapper">
             <table>
@@ -824,13 +920,14 @@
                   <th>Issued To</th>
                   <th>Email</th>
                   <th>Issue Date</th>
+                  <th>Due Date</th>
                   <th>Return Date</th>
                   <th>Status</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody id="issuedBooksBody">
-                <tr><td colspan="9" class="empty-state">Loading issued books...</td></tr>
+                <tr><td colspan="10" class="empty-state">Loading issued books...</td></tr>
               </tbody>
             </table>
           </div>
@@ -1285,8 +1382,107 @@
   }
 
   // ============ ISSUE BOOKS MANAGEMENT ============
+  let allIssuedBooks = []; // Store for search filtering
+
+  // Auto-set Issue Date and Due Date fields in the form
+  function setIssueDates() {
+    const today = new Date();
+    const dueDate = new Date(today);
+    dueDate.setDate(dueDate.getDate() + 14);
+    document.getElementById('issueDate').value = today.toLocaleDateString();
+    document.getElementById('dueDate').value = dueDate.toLocaleDateString();
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
+    return d.toLocaleDateString();
+  }
+
+  function getStatusInfo(ib) {
+    const now = new Date();
+    if (ib.status === 'Returned') {
+      return { badge: '<span class="badge-returned">Returned</span>', label: 'Returned' };
+    }
+    // Check if overdue (status is Issued and due_date has passed)
+    if (ib.due_date && new Date(ib.due_date) < now) {
+      return { badge: '<span class="badge-overdue">Overdue</span>', label: 'Overdue' };
+    }
+    return { badge: '<span class="badge-issued">Issued</span>', label: 'Issued' };
+  }
+
+  function renderIssuedBooks(books) {
+    const tbody = document.getElementById('issuedBooksBody');
+    if (books.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No books issued yet.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = books.map(ib => {
+      const issueDate = formatDate(ib.issue_date);
+      const dueDate = formatDate(ib.due_date);
+      const returnDate = formatDate(ib.return_date);
+      const statusInfo = getStatusInfo(ib);
+      const actionBtn = ib.status === 'Issued'
+        ? `<button class="btn btn-return" onclick="returnBook(${ib.id}, '${escapeAttr(ib.book_name)}')">Return</button>`
+        : '';
+
+      return `
+      <tr>
+        <td>${ib.id}</td>
+        <td>${escapeHtml(ib.book_name)}</td>
+        <td>${escapeHtml(ib.author_name)}</td>
+        <td>${escapeHtml(ib.user_name)}</td>
+        <td>${escapeHtml(ib.user_email)}</td>
+        <td>${issueDate}</td>
+        <td>${dueDate}</td>
+        <td>${returnDate}</td>
+        <td>${statusInfo.badge}</td>
+        <td class="actions">${actionBtn}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function filterIssuedBooks() {
+    const query = document.getElementById('issueSearchBox').value.toLowerCase().trim();
+    if (!query) {
+      renderIssuedBooks(allIssuedBooks);
+      return;
+    }
+    const filtered = allIssuedBooks.filter(ib => {
+      const statusLabel = getStatusInfo(ib).label.toLowerCase();
+      return (
+        ib.book_name.toLowerCase().includes(query) ||
+        ib.author_name.toLowerCase().includes(query) ||
+        ib.user_name.toLowerCase().includes(query) ||
+        ib.user_email.toLowerCase().includes(query) ||
+        statusLabel.includes(query)
+      );
+    });
+    renderIssuedBooks(filtered);
+  }
+
+  async function loadIssueSummary() {
+    try {
+      const res = await fetch(BASE + '/api/issued-books/summary');
+      const summary = await res.json();
+      document.getElementById('summaryIssued').textContent = summary.totalIssued || 0;
+      document.getElementById('summaryReturned').textContent = summary.totalReturned || 0;
+      document.getElementById('summaryOverdue').textContent = summary.totalOverdue || 0;
+    } catch {
+      // Silent fail - summary is non-critical
+    }
+  }
+
   async function loadIssueBooks() {
     try {
+      // Set issue/due date fields in the form
+      setIssueDates();
+
+      // Load summary stats
+      loadIssueSummary();
+
       // Load available books for dropdown
       const booksRes = await fetch(BASE + '/api/books/available');
       const availableBooks = await booksRes.json();
@@ -1307,37 +1503,11 @@
 
       // Load issued books list
       const issuedRes = await fetch(BASE + '/api/issued-books');
-      const issuedBooks = await issuedRes.json();
-      const tbody = document.getElementById('issuedBooksBody');
+      allIssuedBooks = await issuedRes.json();
 
-      if (issuedBooks.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No books issued yet.</td></tr>';
-        return;
-      }
-
-      tbody.innerHTML = issuedBooks.map(ib => {
-        const issueDate = new Date(ib.issue_date).toLocaleDateString();
-        const returnDate = ib.return_date ? new Date(ib.return_date).toLocaleDateString() : '-';
-        const statusBadge = ib.status === 'Issued'
-          ? '<span class="badge-issued">Issued</span>'
-          : '<span class="badge-returned">Returned</span>';
-        const actionBtn = ib.status === 'Issued'
-          ? `<button class="btn btn-return" onclick="returnBook(${ib.id}, '${escapeAttr(ib.book_name)}')">Return</button>`
-          : '';
-
-        return `
-        <tr>
-          <td>${ib.id}</td>
-          <td>${escapeHtml(ib.book_name)}</td>
-          <td>${escapeHtml(ib.author_name)}</td>
-          <td>${escapeHtml(ib.user_name)}</td>
-          <td>${escapeHtml(ib.user_email)}</td>
-          <td>${issueDate}</td>
-          <td>${returnDate}</td>
-          <td>${statusBadge}</td>
-          <td class="actions">${actionBtn}</td>
-        </tr>`;
-      }).join('');
+      // Clear search box and render all
+      document.getElementById('issueSearchBox').value = '';
+      renderIssuedBooks(allIssuedBooks);
     } catch {
       showAlert('issueAlert', 'Failed to load issued books', 'error');
     }
@@ -1374,6 +1544,7 @@
 
       showAlert('issueAlert', 'Book issued successfully', 'success');
       document.getElementById('issueForm').reset();
+      setIssueDates(); // Reset the date fields after form reset
       loadIssueBooks();
     } catch {
       showAlert('issueAlert', 'Failed to issue book', 'error');
