@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('crypto');
+const https = require('https');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const multer = require('multer');
@@ -9,6 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const BASE = '/mohit';
 const FINE_PER_DAY = 5;
+const FINE_GRACE_DAYS = 14;
 app.set('trust proxy', 1);
 
 // Accept both prefixed (/mohit/...) and non-prefixed (...) routes.
@@ -28,7 +30,7 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Multer setup for book image uploads
+// Multer setup for image uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     // Ensure uploads directory exists before each write (handles deployed environments)
@@ -40,7 +42,8 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     const ext = path.extname(file.originalname);
-    cb(null, 'book-' + uniqueSuffix + ext);
+    const prefix = file.fieldname === 'profile_image' ? 'user' : 'book';
+    cb(null, prefix + '-' + uniqueSuffix + ext);
   }
 });
 
@@ -50,7 +53,8 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const extOk = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimeOk = allowedTypes.test(file.mimetype.split('/')[1]);
+    const mimeSubtype = (file.mimetype || '').split('/')[1] || '';
+    const mimeOk = allowedTypes.test(mimeSubtype);
     if (extOk && mimeOk) {
       cb(null, true);
     } else {
@@ -95,6 +99,169 @@ function startOfDay(date) {
   return d;
 }
 
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function getPolicyDueDay(issueDateValue) {
+  const issueDate = parseDateValue(issueDateValue);
+  if (!issueDate) return null;
+  return startOfDay(addDays(issueDate, FINE_GRACE_DAYS));
+}
+
+function generatePaymentReference(prefix) {
+  const ts = Date.now().toString().slice(-8);
+  const rand = Math.floor(Math.random() * 9000 + 1000);
+  return `${prefix}-${ts}${rand}`;
+}
+
+function getPayPalBaseUrl() {
+  const mode = String(process.env.PAYPAL_MODE || 'sandbox').trim().toLowerCase();
+  return mode === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
+}
+
+function getPayPalCredentials() {
+  return {
+    clientId: String(process.env.PAYPAL_CLIENT_ID || '').trim(),
+    clientSecret: String(process.env.PAYPAL_CLIENT_SECRET || '').trim()
+  };
+}
+
+function getPayPalCurrencyCode() {
+  return String(process.env.PAYPAL_CURRENCY || 'USD').trim().toUpperCase();
+}
+
+function paypalHttpRequest(options, body, cb) {
+  const req = https.request(options, (res) => {
+    let raw = '';
+    res.on('data', (chunk) => {
+      raw += chunk;
+    });
+    res.on('end', () => {
+      let parsed = null;
+      if (raw) {
+        try {
+          parsed = JSON.parse(raw);
+        } catch (parseErr) {
+          parsed = null;
+        }
+      }
+      cb(null, {
+        statusCode: res.statusCode || 500,
+        data: parsed,
+        raw
+      });
+    });
+  });
+
+  req.on('error', (err) => cb(err));
+  if (body) req.write(body);
+  req.end();
+}
+
+function getPayPalAccessToken(cb) {
+  const creds = getPayPalCredentials();
+  if (!creds.clientId || !creds.clientSecret) {
+    return cb(new Error('PayPal is not configured on server. Missing PAYPAL_CLIENT_ID/PAYPAL_CLIENT_SECRET.'));
+  }
+
+  const baseUrl = new URL(getPayPalBaseUrl());
+  const payload = 'grant_type=client_credentials';
+  const auth = Buffer.from(`${creds.clientId}:${creds.clientSecret}`).toString('base64');
+  const options = {
+    hostname: baseUrl.hostname,
+    method: 'POST',
+    path: '/v1/oauth2/token',
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Length': Buffer.byteLength(payload)
+    }
+  };
+
+  paypalHttpRequest(options, payload, (err, response) => {
+    if (err) return cb(err);
+    const accessToken = response?.data?.access_token;
+    if (response.statusCode < 200 || response.statusCode >= 300 || !accessToken) {
+      return cb(new Error(response?.data?.error_description || 'Failed to authenticate with PayPal'));
+    }
+    cb(null, accessToken);
+  });
+}
+
+function createPayPalOrder(amount, fineId, cb) {
+  getPayPalAccessToken((tokenErr, accessToken) => {
+    if (tokenErr) return cb(tokenErr);
+
+    const baseUrl = new URL(getPayPalBaseUrl());
+    const currencyCode = getPayPalCurrencyCode();
+    const payloadObj = {
+      intent: 'CAPTURE',
+      purchase_units: [
+        {
+          reference_id: `fine-${fineId}`,
+          description: `Library fine payment #${fineId}`,
+          amount: {
+            currency_code: currencyCode,
+            value: Number(amount || 0).toFixed(2)
+          }
+        }
+      ],
+      application_context: {
+        shipping_preference: 'NO_SHIPPING',
+        user_action: 'PAY_NOW'
+      }
+    };
+    const payload = JSON.stringify(payloadObj);
+    const options = {
+      hostname: baseUrl.hostname,
+      method: 'POST',
+      path: '/v2/checkout/orders',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    };
+
+    paypalHttpRequest(options, payload, (orderErr, response) => {
+      if (orderErr) return cb(orderErr);
+      if (response.statusCode < 200 || response.statusCode >= 300 || !response?.data?.id) {
+        return cb(new Error(response?.data?.message || 'Failed to create PayPal order'));
+      }
+      cb(null, response.data);
+    });
+  });
+}
+
+function capturePayPalOrder(orderId, cb) {
+  getPayPalAccessToken((tokenErr, accessToken) => {
+    if (tokenErr) return cb(tokenErr);
+
+    const baseUrl = new URL(getPayPalBaseUrl());
+    const options = {
+      hostname: baseUrl.hostname,
+      method: 'POST',
+      path: `/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'Content-Length': 2
+      }
+    };
+
+    paypalHttpRequest(options, '{}', (captureErr, response) => {
+      if (captureErr) return cb(captureErr);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return cb(new Error(response?.data?.message || 'Failed to capture PayPal payment'));
+      }
+      cb(null, response.data);
+    });
+  });
+}
+
 // Parse cookies from request
 function parseCookies(req) {
   const cookies = {};
@@ -115,6 +282,17 @@ function isAuthenticated(req) {
   return token && sessions[token];
 }
 
+function clearSessionCookie(res) {
+  const variants = [
+    { httpOnly: true, sameSite: 'strict', path: '/' },
+    { httpOnly: true, sameSite: 'lax', path: '/' }
+  ];
+  variants.forEach((opts) => {
+    res.clearCookie('session_token', { ...opts, secure: true });
+    res.clearCookie('session_token', { ...opts, secure: false });
+  });
+}
+
 // Auth middleware - protect pages and API routes
 function requireAuth(req, res, next) {
   if (isAuthenticated(req)) {
@@ -127,7 +305,7 @@ function requireAuth(req, res, next) {
 }
 
 function syncFines(cb) {
-  db.all('SELECT id, due_date, return_date, status FROM issued_books', [], (err, rows) => {
+  db.all('SELECT id, issue_date, return_date, status FROM issued_books', [], (err, rows) => {
     if (err) return cb(err);
 
     const today = startOfDay(new Date());
@@ -135,10 +313,8 @@ function syncFines(cb) {
 
     rows.forEach((row) => {
       const status = normalizeStatus(row.status);
-      const dueDate = parseDateValue(row.due_date);
-      if (!dueDate) return;
-
-      const dueDay = startOfDay(dueDate);
+      const dueDay = getPolicyDueDay(row.issue_date);
+      if (!dueDay) return;
       let daysOverdue = 0;
 
       if (status === 'issued') {
@@ -220,6 +396,10 @@ app.get('/contact.html', requireAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'contact.html'));
 });
 
+app.get('/collect-fine.html', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'collect-fine.html'));
+});
+
 // Serve other static assets publicly (but index: false prevents auto-serving index.html)
 app.use(express.static(path.join(__dirname, 'public'), {
   index: false
@@ -242,9 +422,55 @@ db.run(`
     email TEXT UNIQUE NOT NULL,
     phone TEXT NOT NULL,
     role TEXT NOT NULL,
-    password TEXT NOT NULL
+    password TEXT NOT NULL,
+    profile_image TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
+
+// Add users columns for existing databases
+db.all('PRAGMA table_info(users)', [], (err, columns) => {
+  if (err) return;
+  const colNames = columns.map((c) => c.name);
+  if (!colNames.includes('created_at')) {
+    db.run('ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+  }
+  if (!colNames.includes('profile_image')) {
+    db.run('ALTER TABLE users ADD COLUMN profile_image TEXT');
+  }
+});
+
+// Create class master table
+db.run(`
+  CREATE TABLE IF NOT EXISTS class_master (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    class_name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+// Create book master table
+db.run(`
+  CREATE TABLE IF NOT EXISTS book_master (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_name TEXT NOT NULL,
+    author_name TEXT NOT NULL,
+    publisher_name TEXT NOT NULL,
+    isbn TEXT,
+    total_copies INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(book_name, author_name, publisher_name)
+  )
+`);
+
+db.all('PRAGMA table_info(book_master)', [], (err, columns) => {
+  if (err) return;
+  const colNames = columns.map((c) => c.name);
+  if (!colNames.includes('total_copies')) {
+    db.run('ALTER TABLE book_master ADD COLUMN total_copies INTEGER NOT NULL DEFAULT 1');
+  }
+});
 
 // Create contact_messages table
 db.run(`
@@ -266,24 +492,72 @@ db.run(`
     class TEXT NOT NULL,
     author_name TEXT NOT NULL,
     publisher_name TEXT NOT NULL,
+    isbn TEXT,
+    book_master_id INTEGER,
+    class_master_id INTEGER,
     book_image TEXT,
     total_copies INTEGER NOT NULL DEFAULT 1,
     available_copies INTEGER NOT NULL DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (book_master_id) REFERENCES book_master(id),
+    FOREIGN KEY (class_master_id) REFERENCES class_master(id)
   )
 `);
 
-// Add total_copies and available_copies columns if they don't exist (for existing databases)
-db.all("PRAGMA table_info(books)", [], (err, columns) => {
+// Add books columns for existing databases
+db.all('PRAGMA table_info(books)', [], (err, columns) => {
   if (err) return;
-  const colNames = columns.map(c => c.name);
+  const colNames = columns.map((c) => c.name);
   if (!colNames.includes('total_copies')) {
-    db.run("ALTER TABLE books ADD COLUMN total_copies INTEGER NOT NULL DEFAULT 1");
+    db.run('ALTER TABLE books ADD COLUMN total_copies INTEGER NOT NULL DEFAULT 1');
   }
   if (!colNames.includes('available_copies')) {
-    db.run("ALTER TABLE books ADD COLUMN available_copies INTEGER NOT NULL DEFAULT 1");
+    db.run('ALTER TABLE books ADD COLUMN available_copies INTEGER NOT NULL DEFAULT 1');
+  }
+  if (!colNames.includes('isbn')) {
+    db.run('ALTER TABLE books ADD COLUMN isbn TEXT');
+  }
+  if (!colNames.includes('book_master_id')) {
+    db.run('ALTER TABLE books ADD COLUMN book_master_id INTEGER');
+  }
+  if (!colNames.includes('class_master_id')) {
+    db.run('ALTER TABLE books ADD COLUMN class_master_id INTEGER');
   }
 });
+
+// Backfill class/book master from existing books
+db.run(`
+  INSERT OR IGNORE INTO class_master (class_name)
+  SELECT DISTINCT class FROM books WHERE class IS NOT NULL AND trim(class) <> ''
+`);
+
+db.run(`
+  INSERT OR IGNORE INTO book_master (book_name, author_name, publisher_name, isbn, total_copies)
+  SELECT DISTINCT book_name, author_name, publisher_name, isbn, COALESCE(total_copies, 1)
+  FROM books
+  WHERE book_name IS NOT NULL AND author_name IS NOT NULL AND publisher_name IS NOT NULL
+`);
+
+db.run(`
+  UPDATE books
+  SET class_master_id = (
+    SELECT cm.id FROM class_master cm WHERE cm.class_name = books.class
+  )
+  WHERE class_master_id IS NULL
+`);
+
+db.run(`
+  UPDATE books
+  SET book_master_id = (
+    SELECT bm.id
+    FROM book_master bm
+    WHERE bm.book_name = books.book_name
+      AND bm.author_name = books.author_name
+      AND bm.publisher_name = books.publisher_name
+    LIMIT 1
+  )
+  WHERE book_master_id IS NULL
+`);
 
 // Create issued_books table for tracking book issues and returns
 db.run(`
@@ -301,11 +575,11 @@ db.run(`
 `);
 
 // Add due_date column if it doesn't exist (for existing databases)
-db.all("PRAGMA table_info(issued_books)", [], (err, columns) => {
+db.all('PRAGMA table_info(issued_books)', [], (err, columns) => {
   if (err) return;
   const colNames = columns.map(c => c.name);
   if (!colNames.includes('due_date')) {
-    db.run("ALTER TABLE issued_books ADD COLUMN due_date DATETIME");
+    db.run('ALTER TABLE issued_books ADD COLUMN due_date DATETIME');
     // Set due_date for existing records that don't have it (14 days from issue_date)
     db.run("UPDATE issued_books SET due_date = datetime(issue_date, '+14 days') WHERE due_date IS NULL");
   }
@@ -319,9 +593,47 @@ db.run(`
     days_overdue INTEGER NOT NULL DEFAULT 0,
     fine_amount REAL NOT NULL DEFAULT 0,
     status TEXT NOT NULL DEFAULT 'Pending',
+    payment_type TEXT,
+    payment_reference TEXT,
+    payment_notes TEXT,
     collected_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (issued_book_id) REFERENCES issued_books(id)
+  )
+`);
+
+db.all('PRAGMA table_info(fines)', [], (err, columns) => {
+  if (err) return;
+  const colNames = columns.map((c) => c.name);
+  if (!colNames.includes('payment_type')) {
+    db.run('ALTER TABLE fines ADD COLUMN payment_type TEXT');
+  }
+  if (!colNames.includes('payment_reference')) {
+    db.run('ALTER TABLE fines ADD COLUMN payment_reference TEXT');
+  }
+  if (!colNames.includes('payment_notes')) {
+    db.run('ALTER TABLE fines ADD COLUMN payment_notes TEXT');
+  }
+
+  db.run("UPDATE fines SET payment_type = 'Offline' WHERE lower(trim(status)) = 'collected' AND (payment_type IS NULL OR trim(payment_type) = '')");
+});
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS fine_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fine_id INTEGER,
+    issued_book_id INTEGER,
+    user_id INTEGER,
+    book_id INTEGER,
+    amount REAL NOT NULL,
+    payment_type TEXT NOT NULL,
+    payment_status TEXT NOT NULL DEFAULT 'Success',
+    transaction_id TEXT,
+    payment_gateway TEXT,
+    payment_reference TEXT,
+    payment_notes TEXT,
+    paid_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   )
 `);
 
@@ -346,7 +658,7 @@ app.post('/api/login', (req, res) => {
     const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
     res.cookie('session_token', token, {
       httpOnly: true,
-      sameSite: 'strict',
+      sameSite: 'lax',
       secure: isSecure,
       path: '/',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
@@ -364,26 +676,40 @@ app.post('/api/logout', (req, res) => {
   if (token && sessions[token]) {
     delete sessions[token];
   }
+  // Clear session cookie - match all possible path/sameSite/secure combinations
   const isSecure = req.secure || req.headers['x-forwarded-proto'] === 'https';
-  res.clearCookie('session_token', {
-    httpOnly: true,
-    sameSite: 'strict',
-    secure: isSecure,
-    path: '/'
+  const paths = ['/', '/mohit', '/mohit/'];
+  const sameSiteOpts = ['strict', 'lax', 'none'];
+  paths.forEach(p => {
+    sameSiteOpts.forEach(ss => {
+      res.clearCookie('session_token', { httpOnly: true, path: p, sameSite: ss, secure: isSecure });
+      if (isSecure) {
+        res.clearCookie('session_token', { httpOnly: true, path: p, sameSite: ss, secure: false });
+      }
+    });
+    // Also clear without sameSite attribute
+    res.clearCookie('session_token', { httpOnly: true, path: p });
   });
   return res.json({ message: 'Logout successful' });
 });
+
+function requireApiAuth(req, res, next) {
+  if (isAuthenticated(req)) {
+    return next();
+  }
+  return res.status(401).json({ error: 'Unauthorized. Please login.' });
+}
 
 // Protect all API routes except login/logout
 app.use('/api', (req, res, next) => {
   if (req.path === '/login' || req.path === '/logout') {
     return next();
   }
-  if (isAuthenticated(req)) {
-    return next();
-  }
-  return res.status(401).json({ error: 'Unauthorized. Please login.' });
+  return requireApiAuth(req, res, next);
 });
+
+// Also protect non-prefixed users endpoints
+app.use('/users', requireApiAuth);
 
 // GET /api/dashboard/stats - Dashboard statistics
 app.get('/api/dashboard/stats', (req, res) => {
@@ -396,7 +722,7 @@ app.get('/api/dashboard/stats', (req, res) => {
       if (err2) return res.status(500).json({ error: 'Failed to fetch stats' });
       stats.totalBooks = row2.count;
 
-      db.get("SELECT COUNT(*) as count FROM issued_books WHERE status = 'Issued'", [], (err3, row3) => {
+      db.get("SELECT COUNT(*) as count FROM issued_books WHERE lower(trim(status)) = 'issued'", [], (err3, row3) => {
         if (err3) {
           stats.totalIssued = 0;
         } else {
@@ -440,70 +766,110 @@ function validateUser(data, isUpdate = false) {
   return errors;
 }
 
-// GET /api/users - List all users
-app.get('/api/users', (req, res) => {
-  db.all('SELECT id, full_name, email, phone, role FROM users ORDER BY id DESC', [], (err, rows) => {
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function parsePositiveInteger(value) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function listUsers(req, res) {
+  db.all('SELECT id, full_name, email, phone, role, profile_image, created_at FROM users ORDER BY id DESC', [], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: 'Failed to fetch users' });
     }
     res.json(rows);
   });
-});
+}
 
-// POST /api/users - Add user
-app.post('/api/users', (req, res) => {
+function createUser(req, res) {
   const errors = validateUser(req.body);
   if (errors.length > 0) {
+    if (req.file) fs.unlinkSync(req.file.path);
     return res.status(400).json({ error: errors.join(', ') });
   }
 
-  const { full_name, email, phone, role, password } = req.body;
+  const full_name = req.body.full_name.trim();
+  const email = req.body.email.trim().toLowerCase();
+  const phone = req.body.phone.trim();
+  const role = req.body.role;
+  const password = hashPassword(req.body.password);
+  const profileImage = req.file ? '/uploads/' + req.file.filename : null;
 
   db.run(
-    'INSERT INTO users (full_name, email, phone, role, password) VALUES (?, ?, ?, ?, ?)',
-    [full_name.trim(), email.trim().toLowerCase(), phone.trim(), role, password],
+    'INSERT INTO users (full_name, email, phone, role, password, profile_image) VALUES (?, ?, ?, ?, ?, ?)',
+    [full_name, email, phone, role, password, profileImage],
     function (err) {
       if (err) {
+        if (req.file) fs.unlinkSync(req.file.path);
         if (err.message.includes('UNIQUE constraint failed')) {
           return res.status(400).json({ error: 'Email already exists' });
         }
         return res.status(500).json({ error: 'Failed to add user' });
       }
-      res.status(201).json({ id: this.lastID, full_name, email, phone, role });
+      res.status(201).json({ id: this.lastID, full_name, email, phone, role, profile_image: profileImage });
     }
   );
-});
+}
 
-// PUT /api/users/:id - Edit user
-app.put('/api/users/:id', (req, res) => {
-  const { id } = req.params;
+function updateUser(req, res) {
+  const id = parsePositiveInteger(req.params.id);
+  if (!id) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+
   const errors = validateUser(req.body, true);
   if (errors.length > 0) {
+    if (req.file) fs.unlinkSync(req.file.path);
     return res.status(400).json({ error: errors.join(', ') });
   }
 
-  const { full_name, email, phone, role, password } = req.body;
+  const full_name = req.body.full_name.trim();
+  const email = req.body.email.trim().toLowerCase();
+  const phone = req.body.phone.trim();
+  const role = req.body.role;
+  const password = req.body.password;
 
-  db.get('SELECT id FROM users WHERE id = ?', [id], (err, row) => {
+  db.get('SELECT id, profile_image FROM users WHERE id = ?', [id], (err, row) => {
     if (err) {
+      if (req.file) fs.unlinkSync(req.file.path);
       return res.status(500).json({ error: 'Database error' });
     }
     if (!row) {
+      if (req.file) fs.unlinkSync(req.file.path);
       return res.status(404).json({ error: 'User not found' });
     }
 
-    let query, params;
-    if (password && password.length > 0) {
-      query = 'UPDATE users SET full_name = ?, email = ?, phone = ?, role = ?, password = ? WHERE id = ?';
-      params = [full_name.trim(), email.trim().toLowerCase(), phone.trim(), role, password, id];
-    } else {
-      query = 'UPDATE users SET full_name = ?, email = ?, phone = ?, role = ? WHERE id = ?';
-      params = [full_name.trim(), email.trim().toLowerCase(), phone.trim(), role, id];
+    let profileImage = row.profile_image || null;
+    if (req.file) {
+      if (profileImage) {
+        const oldPath = path.join(__dirname, 'public', profileImage.replace(/^\//, ''));
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+      profileImage = '/uploads/' + req.file.filename;
     }
 
-    db.run(query, params, function (err) {
-      if (err) {
-        if (err.message.includes('UNIQUE constraint failed')) {
+    let query;
+    let params;
+    if (password && password.length > 0) {
+      const hashedPassword = hashPassword(password);
+      query = 'UPDATE users SET full_name = ?, email = ?, phone = ?, role = ?, password = ?, profile_image = ? WHERE id = ?';
+      params = [full_name, email, phone, role, hashedPassword, profileImage, id];
+    } else {
+      query = 'UPDATE users SET full_name = ?, email = ?, phone = ?, role = ?, profile_image = ? WHERE id = ?';
+      params = [full_name, email, phone, role, profileImage, id];
+    }
+
+    db.run(query, params, function (runErr) {
+      if (runErr) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        if (runErr.message.includes('UNIQUE constraint failed')) {
           return res.status(400).json({ error: 'Email already exists' });
         }
         return res.status(500).json({ error: 'Failed to update user' });
@@ -511,20 +877,250 @@ app.put('/api/users/:id', (req, res) => {
       res.json({ message: 'User updated successfully' });
     });
   });
+}
+
+function deleteUser(req, res) {
+  const id = parsePositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+
+  db.get('SELECT profile_image FROM users WHERE id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!row) return res.status(404).json({ error: 'User not found' });
+
+    db.run('DELETE FROM users WHERE id = ?', [id], function (deleteErr) {
+      if (deleteErr) return res.status(500).json({ error: 'Failed to delete user' });
+      if (this.changes === 0) return res.status(404).json({ error: 'User not found' });
+
+      if (row.profile_image) {
+        const imgPath = path.join(__dirname, 'public', row.profile_image.replace(/^\//, ''));
+        if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+      }
+      res.json({ message: 'User deleted successfully' });
+    });
+  });
+}
+
+// Users API - both with and without /api prefix
+app.get('/api/users', listUsers);
+app.post('/api/users', upload.single('profile_image'), createUser);
+app.put('/api/users/:id', upload.single('profile_image'), updateUser);
+app.delete('/api/users/:id', deleteUser);
+
+app.get('/users', listUsers);
+app.post('/users', upload.single('profile_image'), createUser);
+app.put('/users/:id', upload.single('profile_image'), updateUser);
+app.delete('/users/:id', deleteUser);
+
+// --- CLASS MASTER API ---
+app.get('/api/class-master', (req, res) => {
+  db.all('SELECT * FROM class_master ORDER BY class_name ASC', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch classes' });
+    res.json(rows);
+  });
 });
 
-// DELETE /api/users/:id - Delete user
-app.delete('/api/users/:id', (req, res) => {
-  const { id } = req.params;
+app.post('/api/class-master', (req, res) => {
+  const className = String(req.body.class_name || '').trim();
+  const description = String(req.body.description || '').trim();
 
-  db.run('DELETE FROM users WHERE id = ?', [id], function (err) {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to delete user' });
+  if (!className || className.length > 100) {
+    return res.status(400).json({ error: 'Class Name is required (max 100 characters)' });
+  }
+
+  db.run(
+    'INSERT INTO class_master (class_name, description) VALUES (?, ?)',
+    [className, description || null],
+    function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Class already exists' });
+        }
+        return res.status(500).json({ error: 'Failed to add class' });
+      }
+      res.status(201).json({ id: this.lastID, class_name: className, description: description || null });
     }
-    if (this.changes === 0) {
-      return res.status(404).json({ error: 'User not found' });
+  );
+});
+
+app.put('/api/class-master/:id', (req, res) => {
+  const id = parsePositiveInteger(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid class id' });
+
+  const className = String(req.body.class_name || '').trim();
+  const description = String(req.body.description || '').trim();
+
+  if (!className || className.length > 100) {
+    return res.status(400).json({ error: 'Class Name is required (max 100 characters)' });
+  }
+
+  db.run(
+    'UPDATE class_master SET class_name = ?, description = ? WHERE id = ?',
+    [className, description || null, id],
+    function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Class already exists' });
+        }
+        return res.status(500).json({ error: 'Failed to update class' });
+      }
+      if (this.changes === 0) return res.status(404).json({ error: 'Class not found' });
+
+      db.run('UPDATE books SET class = ? WHERE class_master_id = ?', [className, id], () => {
+        res.json({ message: 'Class updated successfully' });
+      });
     }
-    res.json({ message: 'User deleted successfully' });
+  );
+});
+
+app.delete('/api/class-master/:id', (req, res) => {
+  const id = parsePositiveInteger(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid class id' });
+
+  db.get('SELECT COUNT(*) as count FROM books WHERE class_master_id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (row && row.count > 0) {
+      return res.status(400).json({ error: 'Cannot delete class. It is used in books records.' });
+    }
+
+    db.run('DELETE FROM class_master WHERE id = ?', [id], function (deleteErr) {
+      if (deleteErr) return res.status(500).json({ error: 'Failed to delete class' });
+      if (this.changes === 0) return res.status(404).json({ error: 'Class not found' });
+      res.json({ message: 'Class deleted successfully' });
+    });
+  });
+});
+
+// --- BOOK MASTER API ---
+app.get('/api/book-master', (req, res) => {
+  db.all('SELECT * FROM book_master ORDER BY book_name ASC', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch book master data' });
+    res.json(rows);
+  });
+});
+
+app.post('/api/book-master', (req, res) => {
+  const bookName = String(req.body.book_name || '').trim();
+  const authorName = String(req.body.author_name || '').trim();
+  const publisherName = String(req.body.publisher_name || '').trim();
+  const isbn = String(req.body.isbn || '').trim();
+  const totalCopies = parsePositiveInteger(req.body.total_copies) || 1;
+
+  const errors = [];
+  if (!bookName || bookName.length < 2 || bookName.length > 100) {
+    errors.push('Book Name must be between 2 and 100 characters');
+  }
+  if (!authorName || authorName.length < 2 || authorName.length > 100) {
+    errors.push('Author Name must be between 2 and 100 characters');
+  }
+  if (!publisherName || publisherName.length < 2 || publisherName.length > 100) {
+    errors.push('Publisher Name must be between 2 and 100 characters');
+  }
+  if (isbn && isbn.length > 20) {
+    errors.push('ISBN must be up to 20 characters');
+  }
+  if (totalCopies < 1 || totalCopies > 9999) {
+    errors.push('Total Copies must be between 1 and 9999');
+  }
+  if (errors.length > 0) {
+    return res.status(400).json({ error: errors.join(', ') });
+  }
+
+  db.run(
+    'INSERT INTO book_master (book_name, author_name, publisher_name, isbn, total_copies) VALUES (?, ?, ?, ?, ?)',
+    [bookName, authorName, publisherName, isbn || null, totalCopies],
+    function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Book master record already exists' });
+        }
+        return res.status(500).json({ error: 'Failed to add book master record' });
+      }
+      res.status(201).json({
+        id: this.lastID,
+        book_name: bookName,
+        author_name: authorName,
+        publisher_name: publisherName,
+        isbn: isbn || null,
+        total_copies: totalCopies
+      });
+    }
+  );
+});
+
+app.put('/api/book-master/:id', (req, res) => {
+  const id = parsePositiveInteger(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid book master id' });
+
+  const bookName = String(req.body.book_name || '').trim();
+  const authorName = String(req.body.author_name || '').trim();
+  const publisherName = String(req.body.publisher_name || '').trim();
+  const isbn = String(req.body.isbn || '').trim();
+  const totalCopies = parsePositiveInteger(req.body.total_copies) || 1;
+
+  const errors = [];
+  if (!bookName || bookName.length < 2 || bookName.length > 100) {
+    errors.push('Book Name must be between 2 and 100 characters');
+  }
+  if (!authorName || authorName.length < 2 || authorName.length > 100) {
+    errors.push('Author Name must be between 2 and 100 characters');
+  }
+  if (!publisherName || publisherName.length < 2 || publisherName.length > 100) {
+    errors.push('Publisher Name must be between 2 and 100 characters');
+  }
+  if (isbn && isbn.length > 20) {
+    errors.push('ISBN must be up to 20 characters');
+  }
+  if (totalCopies < 1 || totalCopies > 9999) {
+    errors.push('Total Copies must be between 1 and 9999');
+  }
+  if (errors.length > 0) {
+    return res.status(400).json({ error: errors.join(', ') });
+  }
+
+  db.run(
+    'UPDATE book_master SET book_name = ?, author_name = ?, publisher_name = ?, isbn = ?, total_copies = ? WHERE id = ?',
+    [bookName, authorName, publisherName, isbn || null, totalCopies, id],
+    function (err) {
+      if (err) {
+        if (err.message.includes('UNIQUE constraint failed')) {
+          return res.status(400).json({ error: 'Book master record already exists' });
+        }
+        return res.status(500).json({ error: 'Failed to update book master record' });
+      }
+      if (this.changes === 0) return res.status(404).json({ error: 'Book master record not found' });
+
+      db.run(
+        `UPDATE books
+         SET book_name = ?, author_name = ?, publisher_name = ?, isbn = ?, total_copies = ?,
+             available_copies = CASE
+               WHEN (total_copies - available_copies) >= ? THEN 0
+               ELSE ? - (total_copies - available_copies)
+             END
+         WHERE book_master_id = ?`,
+        [bookName, authorName, publisherName, isbn || null, totalCopies, totalCopies, totalCopies, id],
+        () => res.json({ message: 'Book master record updated successfully' })
+      );
+    }
+  );
+});
+
+app.delete('/api/book-master/:id', (req, res) => {
+  const id = parsePositiveInteger(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid book master id' });
+
+  db.get('SELECT COUNT(*) as count FROM books WHERE book_master_id = ?', [id], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (row && row.count > 0) {
+      return res.status(400).json({ error: 'Cannot delete book master record. It is used in books records.' });
+    }
+
+    db.run('DELETE FROM book_master WHERE id = ?', [id], function (deleteErr) {
+      if (deleteErr) return res.status(500).json({ error: 'Failed to delete book master record' });
+      if (this.changes === 0) return res.status(404).json({ error: 'Book master record not found' });
+      res.json({ message: 'Book master record deleted successfully' });
+    });
   });
 });
 
@@ -543,7 +1139,18 @@ app.get('/api/books/available', (req, res) => {
 
 // GET /api/books - List all books
 app.get('/api/books', (req, res) => {
-  db.all('SELECT * FROM books ORDER BY id DESC', [], (err, rows) => {
+  db.all(`
+    SELECT b.*,
+           bm.book_name AS master_book_name,
+           bm.author_name AS master_author_name,
+           bm.publisher_name AS master_publisher_name,
+           bm.isbn AS master_isbn,
+           cm.class_name AS master_class_name
+    FROM books b
+    LEFT JOIN book_master bm ON bm.id = b.book_master_id
+    LEFT JOIN class_master cm ON cm.id = b.class_master_id
+    ORDER BY b.id DESC
+  `, [], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: 'Failed to fetch books' });
     }
@@ -553,78 +1160,107 @@ app.get('/api/books', (req, res) => {
 
 // POST /api/books - Add a book
 app.post('/api/books', upload.single('book_image'), (req, res) => {
-  const { book_name, class: bookClass, author_name, publisher_name, total_copies } = req.body;
+  const { book_master_id, class_master_id, total_copies } = req.body;
   const errors = [];
 
-  if (!book_name || book_name.trim().length < 2 || book_name.trim().length > 100) {
-    errors.push('Book Name must be between 2 and 100 characters');
-  }
-  if (!bookClass || bookClass.trim().length < 1 || bookClass.trim().length > 50) {
-    errors.push('Class is required (max 50 characters)');
-  }
-  if (!author_name || author_name.trim().length < 2 || author_name.trim().length > 100) {
-    errors.push('Author Name must be between 2 and 100 characters');
-  }
-  if (!publisher_name || publisher_name.trim().length < 2 || publisher_name.trim().length > 100) {
-    errors.push('Publisher Name must be between 2 and 100 characters');
-  }
+  const parsedBookMasterId = parsePositiveInteger(book_master_id);
+  const parsedClassMasterId = parsePositiveInteger(class_master_id);
 
-  const copies = parseInt(total_copies) || 1;
-  if (copies < 1 || copies > 9999) {
+  if (!parsedBookMasterId) errors.push('Book Name is required');
+  if (!parsedClassMasterId) errors.push('Class is required');
+
+  const requestedCopies = parsePositiveInteger(total_copies);
+  if (requestedCopies && requestedCopies > 9999) {
     errors.push('Total Copies must be between 1 and 9999');
   }
 
   if (errors.length > 0) {
-    // Clean up uploaded file if validation fails
     if (req.file) fs.unlinkSync(req.file.path);
     return res.status(400).json({ error: errors.join(', ') });
   }
 
-  const bookImage = req.file ? '/uploads/' + req.file.filename : null;
-
-  db.run(
-    'INSERT INTO books (book_name, class, author_name, publisher_name, book_image, total_copies, available_copies) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [book_name.trim(), bookClass.trim(), author_name.trim(), publisher_name.trim(), bookImage, copies, copies],
-    function (err) {
-      if (err) {
-        if (req.file) fs.unlinkSync(req.file.path);
-        return res.status(500).json({ error: 'Failed to add book' });
-      }
-      res.status(201).json({
-        id: this.lastID,
-        book_name: book_name.trim(),
-        class: bookClass.trim(),
-        author_name: author_name.trim(),
-        publisher_name: publisher_name.trim(),
-        book_image: bookImage,
-        total_copies: copies,
-        available_copies: copies
-      });
+  db.get('SELECT * FROM book_master WHERE id = ?', [parsedBookMasterId], (bookErr, masterBook) => {
+    if (bookErr) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(500).json({ error: 'Database error' });
     }
-  );
+    if (!masterBook) {
+      if (req.file) fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: 'Selected Book Name is invalid' });
+    }
+
+    db.get('SELECT * FROM class_master WHERE id = ?', [parsedClassMasterId], (classErr, masterClass) => {
+      if (classErr) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(500).json({ error: 'Database error' });
+      }
+      if (!masterClass) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'Selected Class is invalid' });
+      }
+
+      const bookImage = req.file ? '/uploads/' + req.file.filename : null;
+      const copies = requestedCopies || parsePositiveInteger(masterBook.total_copies) || 1;
+
+      db.run(
+        `INSERT INTO books
+          (book_name, class, author_name, publisher_name, isbn, book_master_id, class_master_id, book_image, total_copies, available_copies)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          masterBook.book_name,
+          masterClass.class_name,
+          masterBook.author_name,
+          masterBook.publisher_name,
+          masterBook.isbn || null,
+          parsedBookMasterId,
+          parsedClassMasterId,
+          bookImage,
+          copies,
+          copies
+        ],
+        function (err) {
+          if (err) {
+            if (req.file) fs.unlinkSync(req.file.path);
+            return res.status(500).json({ error: 'Failed to add book' });
+          }
+          res.status(201).json({
+            id: this.lastID,
+            book_name: masterBook.book_name,
+            class: masterClass.class_name,
+            author_name: masterBook.author_name,
+            publisher_name: masterBook.publisher_name,
+            isbn: masterBook.isbn || null,
+            book_master_id: parsedBookMasterId,
+            class_master_id: parsedClassMasterId,
+            book_image: bookImage,
+            total_copies: copies,
+            available_copies: copies
+          });
+        }
+      );
+    });
+  });
 });
 
 // PUT /api/books/:id - Edit a book
 app.put('/api/books/:id', upload.single('book_image'), (req, res) => {
-  const { id } = req.params;
-  const { book_name, class: bookClass, author_name, publisher_name, total_copies } = req.body;
+  const id = parsePositiveInteger(req.params.id);
+  if (!id) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: 'Invalid book id' });
+  }
+
+  const { book_master_id, class_master_id, total_copies } = req.body;
   const errors = [];
 
-  if (!book_name || book_name.trim().length < 2 || book_name.trim().length > 100) {
-    errors.push('Book Name must be between 2 and 100 characters');
-  }
-  if (!bookClass || bookClass.trim().length < 1 || bookClass.trim().length > 50) {
-    errors.push('Class is required (max 50 characters)');
-  }
-  if (!author_name || author_name.trim().length < 2 || author_name.trim().length > 100) {
-    errors.push('Author Name must be between 2 and 100 characters');
-  }
-  if (!publisher_name || publisher_name.trim().length < 2 || publisher_name.trim().length > 100) {
-    errors.push('Publisher Name must be between 2 and 100 characters');
-  }
+  const parsedBookMasterId = parsePositiveInteger(book_master_id);
+  const parsedClassMasterId = parsePositiveInteger(class_master_id);
 
-  const newTotalCopies = parseInt(total_copies);
-  if (total_copies !== undefined && total_copies !== '' && (isNaN(newTotalCopies) || newTotalCopies < 1 || newTotalCopies > 9999)) {
+  if (!parsedBookMasterId) errors.push('Book Name is required');
+  if (!parsedClassMasterId) errors.push('Class is required');
+
+  const requestedTotalCopies = parsePositiveInteger(total_copies);
+  if ((total_copies !== undefined && total_copies !== '' && !requestedTotalCopies) || (requestedTotalCopies && requestedTotalCopies > 9999)) {
     errors.push('Total Copies must be between 1 and 9999');
   }
 
@@ -643,41 +1279,78 @@ app.put('/api/books/:id', upload.single('book_image'), (req, res) => {
       return res.status(404).json({ error: 'Book not found' });
     }
 
-    let bookImage = row.book_image;
-    if (req.file) {
-      // Delete old image if it exists
-      if (row.book_image) {
-        const oldPath = path.join(__dirname, 'public', row.book_image);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    db.get('SELECT * FROM book_master WHERE id = ?', [parsedBookMasterId], (bookErr, masterBook) => {
+      if (bookErr) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(500).json({ error: 'Database error' });
       }
-      bookImage = '/uploads/' + req.file.filename;
-    }
+      if (!masterBook) {
+        if (req.file) fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: 'Selected Book Name is invalid' });
+      }
 
-    // Calculate new available_copies based on total_copies change
-    let updatedTotalCopies = row.total_copies || 1;
-    let updatedAvailableCopies = row.available_copies || 0;
-    if (!isNaN(newTotalCopies) && newTotalCopies >= 1) {
-      const issuedCount = updatedTotalCopies - updatedAvailableCopies;
-      updatedTotalCopies = newTotalCopies;
-      updatedAvailableCopies = Math.max(0, newTotalCopies - issuedCount);
-    }
-
-    db.run(
-      'UPDATE books SET book_name = ?, class = ?, author_name = ?, publisher_name = ?, book_image = ?, total_copies = ?, available_copies = ? WHERE id = ?',
-      [book_name.trim(), bookClass.trim(), author_name.trim(), publisher_name.trim(), bookImage, updatedTotalCopies, updatedAvailableCopies, id],
-      function (err) {
-        if (err) {
-          return res.status(500).json({ error: 'Failed to update book' });
+      db.get('SELECT * FROM class_master WHERE id = ?', [parsedClassMasterId], (classErr, masterClass) => {
+        if (classErr) {
+          if (req.file) fs.unlinkSync(req.file.path);
+          return res.status(500).json({ error: 'Database error' });
         }
-        res.json({ message: 'Book updated successfully' });
-      }
-    );
+        if (!masterClass) {
+          if (req.file) fs.unlinkSync(req.file.path);
+          return res.status(400).json({ error: 'Selected Class is invalid' });
+        }
+
+        let bookImage = row.book_image;
+        if (req.file) {
+          if (row.book_image) {
+            const oldPath = path.join(__dirname, 'public', row.book_image.replace(/^\//, ''));
+            if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+          }
+          bookImage = '/uploads/' + req.file.filename;
+        }
+
+        // Calculate new available_copies based on total_copies change
+        let updatedTotalCopies = row.total_copies || 1;
+        let updatedAvailableCopies = row.available_copies || 0;
+        const targetTotalCopies = requestedTotalCopies || parsePositiveInteger(masterBook.total_copies) || updatedTotalCopies;
+        if (targetTotalCopies >= 1) {
+          const issuedCount = updatedTotalCopies - updatedAvailableCopies;
+          updatedTotalCopies = targetTotalCopies;
+          updatedAvailableCopies = Math.max(0, targetTotalCopies - issuedCount);
+        }
+
+        db.run(
+          `UPDATE books
+           SET book_name = ?, class = ?, author_name = ?, publisher_name = ?, isbn = ?, book_master_id = ?, class_master_id = ?, book_image = ?, total_copies = ?, available_copies = ?
+           WHERE id = ?`,
+          [
+            masterBook.book_name,
+            masterClass.class_name,
+            masterBook.author_name,
+            masterBook.publisher_name,
+            masterBook.isbn || null,
+            parsedBookMasterId,
+            parsedClassMasterId,
+            bookImage,
+            updatedTotalCopies,
+            updatedAvailableCopies,
+            id
+          ],
+          function (updateErr) {
+            if (updateErr) {
+              return res.status(500).json({ error: 'Failed to update book' });
+            }
+            res.json({ message: 'Book updated successfully' });
+          }
+        );
+      });
+    });
   });
 });
 
 // DELETE /api/books/:id - Delete a book
 app.delete('/api/books/:id', (req, res) => {
-  const { id } = req.params;
+  const id = parsePositiveInteger(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Invalid book id' });
 
   // Check if book has any active issues
   db.get("SELECT COUNT(*) as count FROM issued_books WHERE book_id = ? AND status = 'Issued'", [id], (err, issueRow) => {
@@ -686,18 +1359,18 @@ app.delete('/api/books/:id', (req, res) => {
       return res.status(400).json({ error: 'Cannot delete book. It has ' + issueRow.count + ' active issue(s). Return all copies first.' });
     }
 
-    db.get('SELECT book_image FROM books WHERE id = ?', [id], (err, row) => {
-      if (err) return res.status(500).json({ error: 'Database error' });
+    db.get('SELECT book_image FROM books WHERE id = ?', [id], (getErr, row) => {
+      if (getErr) return res.status(500).json({ error: 'Database error' });
       if (!row) return res.status(404).json({ error: 'Book not found' });
 
       // Delete associated image file
       if (row.book_image) {
-        const imgPath = path.join(__dirname, 'public', row.book_image);
+        const imgPath = path.join(__dirname, 'public', row.book_image.replace(/^\//, ''));
         if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
       }
 
-      db.run('DELETE FROM books WHERE id = ?', [id], function (err) {
-        if (err) return res.status(500).json({ error: 'Failed to delete book' });
+      db.run('DELETE FROM books WHERE id = ?', [id], function (deleteErr) {
+        if (deleteErr) return res.status(500).json({ error: 'Failed to delete book' });
         res.json({ message: 'Book deleted successfully' });
       });
     });
@@ -726,7 +1399,7 @@ app.get('/api/issued-books', (req, res) => {
 
 // GET /api/issued-books/summary - Issue summary stats
 app.get('/api/issued-books/summary', (req, res) => {
-  db.all('SELECT status, due_date FROM issued_books', [], (err, rows) => {
+  db.all('SELECT status, issue_date FROM issued_books', [], (err, rows) => {
     if (err) return res.status(500).json({ error: 'Failed to fetch summary' });
 
     const today = startOfDay(new Date());
@@ -737,10 +1410,11 @@ app.get('/api/issued-books/summary', (req, res) => {
     rows.forEach((row) => {
       const status = normalizeStatus(row.status);
       if (status === 'issued') {
-        totalIssued += 1;
-        const dueDate = parseDateValue(row.due_date);
-        if (dueDate && startOfDay(dueDate) < today) {
+        const policyDueDay = getPolicyDueDay(row.issue_date);
+        if (policyDueDay && policyDueDay < today) {
           totalOverdue += 1;
+        } else {
+          totalIssued += 1;
         }
       } else if (status === 'returned') {
         totalReturned += 1;
@@ -762,27 +1436,23 @@ app.post('/api/issued-books', (req, res) => {
 
   if (!book_id) errors.push('Book is required');
   if (!user_id) errors.push('User is required');
+  if (!issue_date) errors.push('Issue date is required');
 
   if (errors.length > 0) {
     return res.status(400).json({ error: errors.join(', ') });
   }
 
-  const issueDateDb = formatDateForDb(issue_date || new Date().toISOString().slice(0, 10));
-  let dueDateDb = formatDateForDb(due_date || null, true);
+  const issueDateDb = formatDateForDb(issue_date);
+  const dueDateDb = due_date ? formatDateForDb(due_date, true) : null;
 
   if (!issueDateDb) {
     return res.status(400).json({ error: 'Invalid issue date' });
   }
-  if (!dueDateDb) {
-    const fallbackDue = new Date(issueDateDb.replace(' ', 'T'));
-    fallbackDue.setDate(fallbackDue.getDate() + 14);
-    const y = fallbackDue.getFullYear();
-    const m = String(fallbackDue.getMonth() + 1).padStart(2, '0');
-    const d = String(fallbackDue.getDate()).padStart(2, '0');
-    dueDateDb = `${y}-${m}-${d} 23:59:59`;
+  if (due_date && !dueDateDb) {
+    return res.status(400).json({ error: 'Invalid due date' });
   }
 
-  if (dueDateDb < issueDateDb) {
+  if (dueDateDb && dueDateDb < issueDateDb) {
     return res.status(400).json({ error: 'Due date cannot be earlier than issue date' });
   }
 
@@ -829,9 +1499,6 @@ app.put('/api/issued-books/:id/return', (req, res) => {
   db.get('SELECT * FROM issued_books WHERE id = ?', [id], (err, issued) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!issued) return res.status(404).json({ error: 'Issued record not found' });
-    if (issued.status === 'Returned') {
-      return res.status(400).json({ error: 'This book has already been returned' });
-    }
 
     const returnDateDb = formatDateForDb(return_date || new Date().toISOString().slice(0, 10), true);
     if (!returnDateDb) {
@@ -841,13 +1508,56 @@ app.put('/api/issued-books/:id/return', (req, res) => {
       return res.status(400).json({ error: 'Return date cannot be earlier than issue date' });
     }
 
-    db.run('UPDATE issued_books SET status = ?, return_date = ? WHERE id = ?', ['Returned', returnDateDb, id], function(err) {
+    const alreadyReturned = normalizeStatus(issued.status) === 'returned';
+    const updateSql = alreadyReturned
+      ? 'UPDATE issued_books SET return_date = ? WHERE id = ?'
+      : 'UPDATE issued_books SET status = ?, return_date = ? WHERE id = ?';
+    const updateParams = alreadyReturned
+      ? [returnDateDb, id]
+      : ['Returned', returnDateDb, id];
+
+    db.run(updateSql, updateParams, function(err) {
       if (err) return res.status(500).json({ error: 'Failed to return book' });
+
+      if (alreadyReturned) {
+        return res.json({ message: 'Return date updated successfully' });
+      }
 
       db.run('UPDATE books SET available_copies = available_copies + 1 WHERE id = ?', [issued.book_id], function(err) {
         if (err) return res.status(500).json({ error: 'Failed to update book availability' });
-
         res.json({ message: 'Book returned successfully' });
+      });
+    });
+  });
+});
+
+// DELETE /api/issued-books/:id - Delete an issued book record
+app.delete('/api/issued-books/:id', (req, res) => {
+  const id = parsePositiveInteger(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: 'Invalid issued book id' });
+  }
+
+  db.get('SELECT * FROM issued_books WHERE id = ?', [id], (err, issued) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!issued) return res.status(404).json({ error: 'Issued record not found' });
+
+    // Delete associated fines first
+    db.run('DELETE FROM fines WHERE issued_book_id = ?', [id], (fineErr) => {
+      if (fineErr) return res.status(500).json({ error: 'Failed to delete associated fines' });
+
+      db.run('DELETE FROM issued_books WHERE id = ?', [id], function(delErr) {
+        if (delErr) return res.status(500).json({ error: 'Failed to delete issued book record' });
+
+        // If book was still issued (not returned), restore the available copy
+        if (normalizeStatus(issued.status) === 'issued') {
+          db.run('UPDATE books SET available_copies = available_copies + 1 WHERE id = ?', [issued.book_id], (updateErr) => {
+            if (updateErr) return res.status(500).json({ error: 'Record deleted but failed to restore book availability' });
+            return res.json({ message: 'Issued book record deleted successfully' });
+          });
+        } else {
+          return res.json({ message: 'Issued book record deleted successfully' });
+        }
       });
     });
   });
@@ -884,7 +1594,8 @@ app.get('/api/fines', (req, res) => {
          COALESCE(b.book_name, 'Unknown Book') AS book_name,
          f.days_overdue,
          ROUND(f.fine_amount, 2) AS fine_amount,
-         f.status
+         f.status,
+         COALESCE(f.payment_type, '') AS payment_type
        FROM fines f
        LEFT JOIN issued_books ib ON ib.id = f.issued_book_id
        LEFT JOIN users u ON u.id = ib.user_id
@@ -899,15 +1610,278 @@ app.get('/api/fines', (req, res) => {
   });
 });
 
+app.get('/api/fines/:id', (req, res) => {
+  const { id } = req.params;
+  syncFines((syncErr) => {
+    if (syncErr) return res.status(500).json({ error: 'Failed to fetch fine details' });
+
+    db.get(
+      `SELECT
+         f.id,
+         f.issued_book_id,
+         COALESCE(u.full_name, 'Unknown User') AS user_name,
+         COALESCE(u.email, '-') AS user_email,
+         COALESCE(b.book_name, 'Unknown Book') AS book_name,
+         COALESCE(b.author_name, '-') AS author_name,
+         COALESCE(b.publisher_name, '-') AS publisher_name,
+         f.days_overdue,
+         ROUND(f.fine_amount, 2) AS fine_amount,
+         f.status,
+         COALESCE(f.payment_type, '') AS payment_type
+       FROM fines f
+       LEFT JOIN issued_books ib ON ib.id = f.issued_book_id
+       LEFT JOIN users u ON u.id = ib.user_id
+       LEFT JOIN books b ON b.id = ib.book_id
+       WHERE f.id = ?`,
+      [id],
+      (err, row) => {
+        if (err) return res.status(500).json({ error: 'Failed to fetch fine details' });
+        if (!row) return res.status(404).json({ error: 'Fine not found' });
+        res.json(row);
+      }
+    );
+  });
+});
+
+app.get('/api/paypal/client-id', (req, res) => {
+  const creds = getPayPalCredentials();
+  if (!creds.clientId || !creds.clientSecret) {
+    return res.status(400).json({ error: 'PayPal is not configured on server' });
+  }
+  return res.json({
+    client_id: creds.clientId,
+    currency: getPayPalCurrencyCode()
+  });
+});
+
+app.post('/api/fines/:id/paypal/create-order', (req, res) => {
+  const { id } = req.params;
+
+  db.get(
+    `SELECT id, fine_amount, status
+     FROM fines
+     WHERE id = ?`,
+    [id],
+    (err, fineRow) => {
+      if (err) return res.status(500).json({ error: 'Failed to load fine details' });
+      if (!fineRow) return res.status(404).json({ error: 'Fine not found' });
+      if (normalizeStatus(fineRow.status) !== 'pending') {
+        return res.status(400).json({ error: 'Fine is already collected' });
+      }
+      if (Number(fineRow.fine_amount || 0) <= 0) {
+        return res.status(400).json({ error: 'Invalid fine amount for payment' });
+      }
+
+      createPayPalOrder(Number(fineRow.fine_amount || 0), Number(fineRow.id), (orderErr, order) => {
+        if (orderErr) return res.status(500).json({ error: orderErr.message || 'Failed to create PayPal order' });
+        return res.json({
+          order_id: order.id,
+          status: order.status || 'CREATED'
+        });
+      });
+    }
+  );
+});
+
 app.post('/api/fines/:id/collect', (req, res) => {
   const { id } = req.params;
-  db.run(
-    "UPDATE fines SET status = 'Collected', collected_at = datetime('now') WHERE id = ? AND status = 'Pending'",
+  const paymentTypeInput = String(req.body?.payment_type || 'Offline').trim().toLowerCase();
+  const paymentType = paymentTypeInput === 'online' ? 'Online' : paymentTypeInput === 'offline' ? 'Offline' : null;
+  const paymentNotes = String(req.body?.payment_notes || '').trim().slice(0, 200);
+
+  if (!paymentType) {
+    return res.status(400).json({ error: 'Payment type must be Online or Offline' });
+  }
+
+  db.get(
+    `SELECT
+       f.id,
+       f.issued_book_id,
+       f.fine_amount,
+       f.status,
+       ib.user_id,
+       ib.book_id
+     FROM fines f
+     LEFT JOIN issued_books ib ON ib.id = f.issued_book_id
+     WHERE f.id = ?`,
     [id],
-    function (err) {
-      if (err) return res.status(500).json({ error: 'Failed to collect fine' });
-      if (this.changes === 0) return res.status(400).json({ error: 'Fine already collected or not found' });
-      return res.json({ message: 'Fine collected successfully' });
+    (err, fineRow) => {
+      if (err) return res.status(500).json({ error: 'Failed to load fine details' });
+      if (!fineRow) return res.status(404).json({ error: 'Fine not found' });
+      if (normalizeStatus(fineRow.status) !== 'pending') {
+        return res.status(400).json({ error: 'Fine already collected or not found' });
+      }
+
+      let transactionId = null;
+      let paymentGateway = null;
+      let paymentReference = null;
+
+      if (paymentType === 'Online') {
+        const orderId = String(req.body?.paypal_order_id || '').trim();
+        if (!orderId) {
+          return res.status(400).json({ error: 'PayPal order id is required for online payment' });
+        }
+
+        return capturePayPalOrder(orderId, (captureErr, captureData) => {
+          if (captureErr) {
+            return res.status(400).json({ error: captureErr.message || 'PayPal capture failed' });
+          }
+
+          const purchaseUnit = captureData?.purchase_units?.[0] || null;
+          const captureInfo = purchaseUnit?.payments?.captures?.[0] || null;
+          if (!captureInfo || String(captureInfo.status || '').toUpperCase() !== 'COMPLETED') {
+            return res.status(400).json({ error: 'PayPal payment is not completed' });
+          }
+
+          transactionId = String(captureInfo.id || '').trim() || null;
+          paymentGateway = 'PayPal';
+          paymentReference = orderId;
+
+          const payerEmail = String(captureData?.payer?.email_address || '').trim();
+          const payerId = String(captureData?.payer?.payer_id || '').trim();
+          const paypalNote = [
+            paymentNotes,
+            payerEmail ? `PayPal Payer: ${payerEmail}` : '',
+            payerId ? `Payer ID: ${payerId}` : ''
+          ].filter(Boolean).join(' | ').slice(0, 200);
+
+          db.serialize(() => {
+            db.run(
+              `UPDATE fines
+               SET status = 'Collected',
+                   payment_type = ?,
+                   payment_reference = ?,
+                   payment_notes = ?,
+                   collected_at = datetime('now')
+               WHERE id = ? AND lower(trim(status)) = 'pending'`,
+              [paymentType, paymentReference, paypalNote || null, id],
+              function (updateErr) {
+                if (updateErr) return res.status(500).json({ error: 'Failed to collect fine' });
+                if (this.changes === 0) return res.status(400).json({ error: 'Fine already collected or not found' });
+
+                db.run(
+                  `INSERT INTO fine_payments
+                     (fine_id, issued_book_id, user_id, book_id, amount, payment_type, payment_status, transaction_id, payment_gateway, payment_reference, payment_notes, paid_at)
+                   VALUES
+                     (?, ?, ?, ?, ?, ?, 'Success', ?, ?, ?, ?, datetime('now'))`,
+                  [
+                    fineRow.id,
+                    fineRow.issued_book_id,
+                    fineRow.user_id || null,
+                    fineRow.book_id || null,
+                    Number(fineRow.fine_amount || 0),
+                    paymentType,
+                    transactionId,
+                    paymentGateway,
+                    paymentReference,
+                    paypalNote || null
+                  ],
+                  function (insertErr) {
+                    if (insertErr) return res.status(500).json({ error: 'Fine collected but failed to save payment record' });
+                    return res.json({
+                      message: 'Fine collected successfully',
+                      payment: {
+                        payment_id: this.lastID || null,
+                        fine_id: fineRow.id,
+                        payment_type: paymentType,
+                        payment_reference: paymentReference,
+                        payment_gateway: paymentGateway,
+                        transaction_id: transactionId
+                      }
+                    });
+                  }
+                );
+              }
+            );
+          });
+        });
+      } else {
+        paymentGateway = 'Office Counter';
+        paymentReference = req.body?.payment_reference
+          ? String(req.body.payment_reference).trim().slice(0, 60)
+          : generatePaymentReference('OFF');
+      }
+
+      db.serialize(() => {
+        db.run(
+          `UPDATE fines
+           SET status = 'Collected',
+               payment_type = ?,
+               payment_reference = ?,
+               payment_notes = ?,
+               collected_at = datetime('now')
+           WHERE id = ? AND lower(trim(status)) = 'pending'`,
+          [paymentType, paymentReference, paymentNotes || null, id],
+          function (updateErr) {
+            if (updateErr) return res.status(500).json({ error: 'Failed to collect fine' });
+            if (this.changes === 0) return res.status(400).json({ error: 'Fine already collected or not found' });
+
+            db.run(
+              `INSERT INTO fine_payments
+                 (fine_id, issued_book_id, user_id, book_id, amount, payment_type, payment_status, transaction_id, payment_gateway, payment_reference, payment_notes, paid_at)
+               VALUES
+                 (?, ?, ?, ?, ?, ?, 'Success', ?, ?, ?, ?, datetime('now'))`,
+              [
+                fineRow.id,
+                fineRow.issued_book_id,
+                fineRow.user_id || null,
+                fineRow.book_id || null,
+                Number(fineRow.fine_amount || 0),
+                paymentType,
+                transactionId,
+                paymentGateway,
+                paymentReference,
+                paymentNotes || null
+              ],
+              function (insertErr) {
+                if (insertErr) return res.status(500).json({ error: 'Fine collected but failed to save payment record' });
+                return res.json({
+                  message: 'Fine collected successfully',
+                  payment: {
+                    payment_id: this.lastID || null,
+                    fine_id: fineRow.id,
+                    payment_type: paymentType,
+                    payment_reference: paymentReference,
+                    payment_gateway: paymentGateway
+                  }
+                });
+              }
+            );
+          }
+        );
+      });
+    }
+  );
+});
+
+app.get('/api/fine-payments', (req, res) => {
+  db.all(
+    `SELECT
+       fp.id AS payment_id,
+       fp.fine_id,
+       fp.issued_book_id,
+       COALESCE(fp.user_id, ib.user_id) AS user_id,
+       COALESCE(fp.book_id, ib.book_id) AS book_id,
+       fp.amount,
+       fp.payment_type,
+       fp.payment_status,
+       fp.transaction_id,
+       fp.payment_gateway,
+       fp.payment_reference,
+       fp.payment_notes,
+       fp.paid_at,
+       COALESCE(u.full_name, 'Unknown User') AS user_name,
+       COALESCE(b.book_name, 'Unknown Book') AS book_name
+     FROM fine_payments fp
+     LEFT JOIN fines f ON f.id = fp.fine_id
+     LEFT JOIN issued_books ib ON ib.id = COALESCE(fp.issued_book_id, f.issued_book_id)
+     LEFT JOIN users u ON u.id = COALESCE(fp.user_id, ib.user_id)
+     LEFT JOIN books b ON b.id = COALESCE(fp.book_id, ib.book_id)
+     ORDER BY fp.id DESC`,
+    [],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: 'Failed to fetch payment records' });
+      res.json(rows);
     }
   );
 });
@@ -990,5 +1964,5 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });

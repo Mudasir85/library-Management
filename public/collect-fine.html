@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collect Fine Payment</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #f6f9ff 0%, #eef2ff 100%);
+      color: #2d3748;
+      min-height: 100vh;
+    }
+    .container {
+      width: min(960px, calc(100% - 32px));
+      margin: 24px auto;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .title { font-size: 1.5rem; font-weight: 700; color: #1a365d; }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+      padding: 20px;
+    }
+    .alert {
+      display: none;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      font-size: 0.92rem;
+    }
+    .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; display: block; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; display: block; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    label {
+      font-weight: 600;
+      color: #4a5568;
+      font-size: 0.9rem;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+    input[disabled] {
+      background: #f7fafc;
+      color: #4a5568;
+    }
+    .row-full { grid-column: 1 / -1; }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+    .btn-primary { background: #2b6cb0; color: #fff; }
+    .btn-primary:hover { background: #1f4f86; }
+    .btn-secondary { background: #edf2f7; color: #2d3748; border: 1px solid #cbd5e0; }
+    .btn-secondary:hover { background: #e2e8f0; }
+    .offline-wrap { display: none; }
+    .online-wrap {
+      display: none;
+      grid-column: 1 / -1;
+      border: 1px solid #dbe6f3;
+      background: #f8fbff;
+      border-radius: 10px;
+      padding: 12px;
+      gap: 10px;
+    }
+    .online-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #1f4f86;
+    }
+    .online-help {
+      font-size: 0.88rem;
+      color: #4a5568;
+    }
+    #paypalButtonContainer {
+      min-height: 44px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="topbar">
+      <h1 class="title">Collect Fine Payment</h1>
+      <a class="btn btn-secondary" href="/mohit/index.html#fines">Back to Fines</a>
+    </div>
+
+    <div id="pageAlert" class="alert"></div>
+
+    <div class="card">
+      <form id="collectFineForm">
+        <input type="hidden" id="fineId">
+        <div class="grid">
+          <div class="field">
+            <label>Fine ID</label>
+            <input type="text" id="fineDisplayId" disabled>
+          </div>
+          <div class="field">
+            <label>User</label>
+            <input type="text" id="fineUser" disabled>
+          </div>
+          <div class="field">
+            <label>Book</label>
+            <input type="text" id="fineBook" disabled>
+          </div>
+          <div class="field">
+            <label>Days Overdue</label>
+            <input type="text" id="fineDays" disabled>
+          </div>
+          <div class="field">
+            <label>Fine Amount</label>
+            <input type="text" id="fineAmount" disabled>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <input type="text" id="fineStatus" disabled>
+          </div>
+          <div class="field">
+            <label for="paymentType">Payment Method</label>
+            <select id="paymentType" required>
+              <option value="">Select payment method</option>
+              <option value="Offline">Offline</option>
+              <option value="Online">Online (PayPal)</option>
+            </select>
+          </div>
+
+          <div class="field offline-wrap" id="offlineRefWrap">
+            <label for="offlineRef">Office Receipt/Reference</label>
+            <input type="text" id="offlineRef" maxlength="60" placeholder="Optional office receipt/reference">
+          </div>
+
+          <div id="onlineWrap" class="online-wrap">
+            <p class="online-title">Pay securely using PayPal</p>
+            <p class="online-help">Choose Online and click the PayPal button below to complete the transaction.</p>
+            <div id="paypalButtonContainer"></div>
+          </div>
+
+          <div class="field row-full">
+            <label for="paymentNotes">Notes (Optional)</label>
+            <textarea id="paymentNotes" rows="3" maxlength="200" placeholder="Optional payment notes"></textarea>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" id="offlineSubmitBtn" class="btn btn-primary">Complete Offline Payment</button>
+          <a class="btn btn-secondary" href="/mohit/index.html#fines">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const BASE = '/mohit';
+
+    function getBasePrefix() {
+      const parts = window.location.pathname.split('/').filter(Boolean);
+      if (parts.length > 0) return '/' + parts[0];
+      return '';
+    }
+
+    const basePrefix = getBasePrefix();
+    const API_PREFIXES = [basePrefix, BASE, ''];
+    let paypalSdkLoaded = false;
+    let paypalButtonsRenderedForFineId = null;
+
+    function showAlert(message, type) {
+      const alert = document.getElementById('pageAlert');
+      alert.textContent = message;
+      alert.className = 'alert alert-' + type;
+      alert.style.display = 'block';
+    }
+
+    function clearAlert() {
+      const alert = document.getElementById('pageAlert');
+      alert.textContent = '';
+      alert.className = 'alert';
+      alert.style.display = 'none';
+    }
+
+    function getFineIdFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return Number(params.get('fine_id') || 0);
+    }
+
+    function fillFineDetails(fine) {
+      document.getElementById('fineId').value = fine.id || '';
+      document.getElementById('fineDisplayId').value = fine.id || '-';
+      document.getElementById('fineUser').value = fine.user_name || 'Unknown User';
+      document.getElementById('fineBook').value = fine.book_name || 'Unknown Book';
+      document.getElementById('fineDays').value = Number(fine.days_overdue || 0);
+      document.getElementById('fineAmount').value = '₹ ' + Number(fine.fine_amount || 0).toFixed(2);
+      document.getElementById('fineStatus').value = fine.status || 'Pending';
+    }
+
+    async function parseJsonResponse(res, fallbackMessage) {
+      const raw = await res.text();
+      try {
+        return raw ? JSON.parse(raw) : {};
+      } catch {
+        const firstLine = String(raw || '').split('\n')[0].trim().slice(0, 120);
+        throw new Error(firstLine || fallbackMessage || 'Server returned an invalid response');
+      }
+    }
+
+    async function apiGetJson(apiPath) {
+      const prefixes = [];
+      for (const prefix of API_PREFIXES) {
+        if (!prefixes.includes(prefix)) prefixes.push(prefix);
+      }
+      let lastError = null;
+
+      for (const prefix of prefixes) {
+        const url = prefix + apiPath;
+        try {
+          const res = await fetch(url);
+          const data = await parseJsonResponse(res, 'Unexpected response from server');
+          return { res, data };
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      throw lastError || new Error('Unable to reach server');
+    }
+
+    async function apiPostJson(apiPath, payload) {
+      const prefixes = [];
+      for (const prefix of API_PREFIXES) {
+        if (!prefixes.includes(prefix)) prefixes.push(prefix);
+      }
+      let lastError = null;
+
+      for (const prefix of prefixes) {
+        const url = prefix + apiPath;
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload || {})
+          });
+          const data = await parseJsonResponse(res, 'Unexpected response from server');
+          return { res, data };
+        } catch (err) {
+          lastError = err;
+        }
+      }
+      throw lastError || new Error('Unable to reach server');
+    }
+
+    async function loadPayPalSdk() {
+      if (paypalSdkLoaded && window.paypal) return;
+      const { res: cfgRes, data: cfg } = await apiGetJson('/api/paypal/client-id');
+      if (!cfgRes.ok) {
+        throw new Error(cfg.error || 'PayPal is not configured');
+      }
+
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(cfg.client_id) + '&currency=' + encodeURIComponent(cfg.currency || 'USD');
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Failed to load PayPal SDK'));
+        document.head.appendChild(script);
+      });
+
+      paypalSdkLoaded = true;
+    }
+
+    async function renderPayPalButton() {
+      const fineId = Number(document.getElementById('fineId').value || 0);
+      if (!fineId) return;
+      if (paypalButtonsRenderedForFineId === fineId) return;
+
+      await loadPayPalSdk();
+      if (!window.paypal) throw new Error('PayPal SDK not available');
+
+      const container = document.getElementById('paypalButtonContainer');
+      container.innerHTML = '';
+
+      window.paypal.Buttons({
+        style: {
+          shape: 'rect',
+          layout: 'vertical'
+        },
+        createOrder: async () => {
+          clearAlert();
+          const { res, data } = await apiPostJson('/api/fines/' + fineId + '/paypal/create-order', {});
+          if (!res.ok || !data.order_id) {
+            throw new Error(data.error || 'Failed to initialize PayPal order');
+          }
+          return data.order_id;
+        },
+        onApprove: async (data) => {
+          const paymentNotes = document.getElementById('paymentNotes').value.trim();
+          const { res, data: result } = await apiPostJson('/api/fines/' + fineId + '/collect', {
+            payment_type: 'Online',
+            payment_notes: paymentNotes,
+            paypal_order_id: data.orderID
+          });
+          if (!res.ok) {
+            showAlert(result.error || 'PayPal payment failed', 'error');
+            return;
+          }
+
+          showAlert('Online payment successful. Redirecting to Fines list...', 'success');
+          setTimeout(() => {
+            window.location.href = BASE + '/index.html#fines';
+          }, 900);
+        },
+        onError: (err) => {
+          const message = err && err.message ? err.message : 'Unable to process PayPal payment';
+          showAlert(message, 'error');
+        }
+      }).render('#paypalButtonContainer');
+
+      paypalButtonsRenderedForFineId = fineId;
+    }
+
+    async function togglePaymentFields() {
+      const type = document.getElementById('paymentType').value;
+      const onlineWrap = document.getElementById('onlineWrap');
+      const offlineWrap = document.getElementById('offlineRefWrap');
+      const offlineSubmitBtn = document.getElementById('offlineSubmitBtn');
+
+      if (type === 'Online') {
+        onlineWrap.style.display = 'grid';
+        offlineWrap.style.display = 'none';
+        offlineSubmitBtn.style.display = 'none';
+        try {
+          await renderPayPalButton();
+        } catch (err) {
+          showAlert(err.message || 'Failed to initialize PayPal', 'error');
+        }
+      } else if (type === 'Offline') {
+        onlineWrap.style.display = 'none';
+        offlineWrap.style.display = 'flex';
+        offlineSubmitBtn.style.display = 'inline-flex';
+      } else {
+        onlineWrap.style.display = 'none';
+        offlineWrap.style.display = 'none';
+        offlineSubmitBtn.style.display = 'inline-flex';
+      }
+    }
+
+    async function loadFine() {
+      const fineId = getFineIdFromUrl();
+      if (!fineId) {
+        showAlert('Invalid fine selected. Please open this page from Fines list.', 'error');
+        return;
+      }
+
+      try {
+        const { res, data } = await apiGetJson('/api/fines/' + fineId);
+        if (!res.ok) {
+          showAlert(data.error || 'Failed to load fine details', 'error');
+          return;
+        }
+
+        if (String(data.status || '').trim().toLowerCase() !== 'pending') {
+          showAlert('This fine is already collected.', 'error');
+          fillFineDetails(data);
+          document.getElementById('collectFineForm').querySelector('button[type="submit"]').disabled = true;
+          return;
+        }
+        fillFineDetails(data);
+      } catch {
+        showAlert('Failed to load fine details', 'error');
+      }
+    }
+
+    async function submitFinePayment(event) {
+      event.preventDefault();
+      clearAlert();
+
+      const fineId = Number(document.getElementById('fineId').value || 0);
+      const paymentType = document.getElementById('paymentType').value;
+      const paymentNotes = document.getElementById('paymentNotes').value.trim();
+
+      if (!fineId) {
+        showAlert('Invalid fine selected', 'error');
+        return;
+      }
+      if (!paymentType) {
+        showAlert('Please select payment method', 'error');
+        return;
+      }
+      if (paymentType !== 'Offline') {
+        showAlert('For online payment, please use the PayPal button.', 'error');
+        return;
+      }
+
+      const payload = {
+        payment_type: 'Offline',
+        payment_notes: paymentNotes
+      };
+
+      const ref = document.getElementById('offlineRef').value.trim();
+      if (ref) payload.payment_reference = ref;
+
+      try {
+        const { res, data: result } = await apiPostJson('/api/fines/' + fineId + '/collect', payload);
+        if (!res.ok) {
+          showAlert(result.error || 'Failed to process payment', 'error');
+          return;
+        }
+
+        showAlert('Offline payment successful. Redirecting to Fines list...', 'success');
+        setTimeout(() => {
+          window.location.href = BASE + '/index.html#fines';
+        }, 900);
+      } catch {
+        showAlert('Failed to process payment', 'error');
+      }
+    }
+
+    document.getElementById('paymentType').addEventListener('change', togglePaymentFields);
+    document.getElementById('collectFineForm').addEventListener('submit', submitFinePayment);
+    loadFine();
+  </script>
+</body>
+</html>

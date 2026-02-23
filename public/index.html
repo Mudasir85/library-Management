@@ -16,7 +16,6 @@
       flex-direction: column;
     }
 
-    /* Top Header */
     .header {
       background: #1a73e8;
       color: #fff;
@@ -72,16 +71,14 @@
 
     .btn-logout:hover { background: rgba(255,255,255,0.25); }
 
-    /* Layout */
     .layout {
       display: flex;
       margin-top: 60px;
       min-height: calc(100vh - 60px);
     }
 
-    /* Sidebar */
     .sidebar {
-      width: 240px;
+      width: 250px;
       background: #fff;
       border-right: 1px solid #e0e0e0;
       padding: 20px 0;
@@ -141,19 +138,16 @@
       margin-top: 16px;
     }
 
-    /* Main Content */
     .main-content {
       flex: 1;
-      margin-left: 240px;
+      margin-left: 250px;
       padding: 24px;
       min-height: calc(100vh - 60px);
     }
 
-    /* Section visibility */
     .section { display: none; }
     .section.active { display: block; }
 
-    /* Dashboard Cards */
     .dashboard-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -204,7 +198,6 @@
       margin-top: 2px;
     }
 
-    /* Card */
     .card {
       background: #fff;
       border-radius: 10px;
@@ -218,6 +211,8 @@
       align-items: center;
       justify-content: space-between;
       margin-bottom: 20px;
+      gap: 12px;
+      flex-wrap: wrap;
     }
 
     .card-header h2 {
@@ -231,7 +226,6 @@
       color: #1a73e8;
     }
 
-    /* Form */
     .form-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -249,19 +243,32 @@
     }
 
     .form-group input,
-    .form-group select {
+    .form-group select,
+    .form-group textarea {
       padding: 10px 12px;
       border: 1px solid #ddd;
       border-radius: 6px;
       font-size: 14px;
       transition: border-color 0.2s;
+      font-family: inherit;
+    }
+
+    .form-group textarea {
+      resize: vertical;
+      min-height: 70px;
     }
 
     .form-group input:focus,
-    .form-group select:focus {
+    .form-group select:focus,
+    .form-group textarea:focus {
       outline: none;
       border-color: #1a73e8;
       box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
+    }
+
+    .readonly-input {
+      background: #f8f9fa;
+      color: #666;
     }
 
     .form-actions {
@@ -269,9 +276,9 @@
       display: flex;
       gap: 12px;
       margin-top: 4px;
+      flex-wrap: wrap;
     }
 
-    /* Image upload */
     .image-upload-area {
       border: 2px dashed #ddd;
       border-radius: 8px;
@@ -300,12 +307,13 @@
 
     .image-preview {
       max-width: 120px;
-      max-height: 80px;
+      max-height: 90px;
       border-radius: 4px;
       margin-top: 8px;
+      object-fit: cover;
+      border: 1px solid #e5e5e5;
     }
 
-    /* Buttons */
     .btn {
       padding: 10px 24px;
       border: none;
@@ -330,7 +338,6 @@
     .btn-edit { background: #ffc107; color: #333; padding: 6px 14px; font-size: 13px; }
     .btn-edit:hover { background: #e0a800; }
 
-    /* Alert */
     .alert {
       padding: 12px 16px;
       border-radius: 6px;
@@ -342,7 +349,6 @@
     .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 
-    /* Table */
     .table-wrapper { overflow-x: auto; }
 
     table { width: 100%; border-collapse: collapse; }
@@ -353,6 +359,7 @@
       text-align: left;
       border-bottom: 1px solid #e9ecef;
       font-size: 14px;
+      vertical-align: middle;
     }
 
     th {
@@ -365,7 +372,7 @@
 
     tbody tr:hover { background: #f8f9fa; }
 
-    .actions { display: flex; gap: 8px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
     .empty-state {
       text-align: center;
@@ -386,15 +393,26 @@
     .role-user { background: #d4edda; color: #155724; }
     .role-guest { background: #fff3cd; color: #856404; }
 
-    .book-thumb {
+    .book-thumb,
+    .user-avatar {
       width: 50px;
       height: 50px;
       object-fit: cover;
       border-radius: 6px;
       border: 1px solid #eee;
+      background: #fff;
     }
 
-    .book-thumb-placeholder {
+    .avatar-small {
+      width: 36px;
+      height: 36px;
+      object-fit: cover;
+      border-radius: 50%;
+      border: 1px solid #eee;
+    }
+
+    .book-thumb-placeholder,
+    .avatar-placeholder {
       width: 50px;
       height: 50px;
       background: #f0f2f5;
@@ -406,75 +424,38 @@
       color: #ccc;
     }
 
-    .badge-available {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
-      background: #d4edda;
-      color: #155724;
+    .avatar-placeholder.small {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      font-size: 14px;
     }
 
-    .badge-not-available {
+    .badge-available,
+    .badge-not-available,
+    .badge-issued,
+    .badge-returned,
+    .badge-overdue,
+    .badge-pending,
+    .badge-collected,
+    .badge-online,
+    .badge-offline {
       display: inline-block;
       padding: 3px 10px;
       border-radius: 12px;
       font-size: 12px;
       font-weight: 600;
-      background: #f8d7da;
-      color: #721c24;
     }
 
-    .badge-issued {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
-      background: #fff3cd;
-      color: #856404;
-    }
-
-    .badge-returned {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
-      background: #d4edda;
-      color: #155724;
-    }
-
-    .badge-overdue {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
-      background: #f8d7da;
-      color: #721c24;
-    }
-
-    .badge-pending {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
-      background: #fff3cd;
-      color: #856404;
-    }
-
-    .badge-collected {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
-      background: #d4edda;
-      color: #155724;
-    }
+    .badge-available { background: #d4edda; color: #155724; }
+    .badge-not-available { background: #f8d7da; color: #721c24; }
+    .badge-issued { background: #fff3cd; color: #856404; }
+    .badge-returned { background: #d4edda; color: #155724; }
+    .badge-overdue { background: #f8d7da; color: #721c24; }
+    .badge-pending { background: #fff3cd; color: #856404; }
+    .badge-collected { background: #d4edda; color: #155724; }
+    .badge-online { background: #dbeafe; color: #1d4ed8; }
+    .badge-offline { background: #f1f5f9; color: #334155; }
 
     .btn-return {
       background: #28a745;
@@ -544,7 +525,6 @@
     .summary-info h3 { font-size: 24px; font-weight: 700; color: #333; }
     .summary-info p { font-size: 12px; color: #888; margin-top: 2px; }
 
-    /* Welcome section */
     .welcome-card {
       background: linear-gradient(135deg, #1a73e8 0%, #4285f4 100%);
       border-radius: 10px;
@@ -556,7 +536,12 @@
     .welcome-card h2 { font-size: 22px; font-weight: 600; margin-bottom: 6px; color: #fff; }
     .welcome-card p { font-size: 14px; opacity: 0.9; }
 
-    /* Sidebar overlay for mobile */
+    .hint-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 6px;
+    }
+
     .sidebar-overlay {
       display: none;
       position: fixed;
@@ -568,8 +553,7 @@
       z-index: 80;
     }
 
-    /* Responsive */
-    @media (max-width: 768px) {
+    @media (max-width: 900px) {
       .menu-toggle { display: block; }
 
       .sidebar {
@@ -600,7 +584,6 @@
 </head>
 <body>
 
-  <!-- Top Header -->
   <div class="header">
     <div class="header-left">
       <button class="menu-toggle" onclick="toggleSidebar()">&#9776;</button>
@@ -612,17 +595,14 @@
     </div>
   </div>
 
-  <!-- Layout: Sidebar + Content -->
   <div class="layout">
-    <!-- Sidebar Overlay (mobile) -->
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
-    <!-- Sidebar -->
     <nav class="sidebar" id="sidebar">
       <div class="sidebar-section">Main</div>
       <ul class="sidebar-nav">
         <li>
-          <a href="#" class="active" data-section="dashboard" onclick="navigateTo('dashboard', this)">
+          <a href="#" class="active" data-section="dashboard" onclick="navigateTo('dashboard', this, event)">
             <span class="nav-icon">&#127968;</span> Dashboard
           </a>
         </li>
@@ -630,23 +610,38 @@
       <div class="sidebar-section">Management</div>
       <ul class="sidebar-nav">
         <li>
-          <a href="#" data-section="users" onclick="navigateTo('users', this)">
+          <a href="#" data-section="users" onclick="navigateTo('users', this, event)">
             <span class="nav-icon">&#128101;</span> Users
           </a>
         </li>
         <li>
-          <a href="#" data-section="books" onclick="navigateTo('books', this)">
+          <a href="#" data-section="book-master" onclick="navigateTo('book-master', this, event)">
+            <span class="nav-icon">&#128213;</span> Book Master
+          </a>
+        </li>
+        <li>
+          <a href="#" data-section="class-master" onclick="navigateTo('class-master', this, event)">
+            <span class="nav-icon">&#127891;</span> Branch/Class Master
+          </a>
+        </li>
+        <li>
+          <a href="#" data-section="books" onclick="navigateTo('books', this, event)">
             <span class="nav-icon">&#128214;</span> Books
           </a>
         </li>
         <li>
-          <a href="#" data-section="issue-books" onclick="navigateTo('issue-books', this)">
+          <a href="#" data-section="issue-books" onclick="navigateTo('issue-books', this, event)">
             <span class="nav-icon">&#128196;</span> Issue Books
           </a>
         </li>
         <li>
-          <a href="#" data-section="fines" onclick="navigateTo('fines', this)">
+          <a href="#" data-section="fines" onclick="navigateTo('fines', this, event)">
             <span class="nav-icon">&#128176;</span> Fines
+          </a>
+        </li>
+        <li>
+          <a href="#" data-section="fine-payments" onclick="navigateTo('fine-payments', this, event)">
+            <span class="nav-icon">&#128179;</span> Fine Payments
           </a>
         </li>
       </ul>
@@ -660,14 +655,12 @@
       </ul>
     </nav>
 
-    <!-- Main Content -->
     <div class="main-content">
 
-      <!-- ==================== DASHBOARD SECTION ==================== -->
       <div id="section-dashboard" class="section active">
         <div class="welcome-card">
           <h2>Welcome to Library Dashboard</h2>
-          <p>Manage your users and books from one place. Use the sidebar to navigate between sections.</p>
+          <p>Manage users, books, masters, issue records and fines from one place.</p>
         </div>
 
         <div class="dashboard-grid">
@@ -703,13 +696,14 @@
               <thead>
                 <tr>
                   <th>ID</th>
+                  <th>Image</th>
                   <th>Name</th>
                   <th>Email</th>
                   <th>Role</th>
                 </tr>
               </thead>
               <tbody id="recentUsersBody">
-                <tr><td colspan="4" class="empty-state">Loading...</td></tr>
+                <tr><td colspan="5" class="empty-state">Loading...</td></tr>
               </tbody>
             </table>
           </div>
@@ -738,13 +732,12 @@
         </div>
       </div>
 
-      <!-- ==================== USERS SECTION ==================== -->
       <div id="section-users" class="section">
         <div id="userAlert" class="alert"></div>
 
         <div class="card">
           <h2 id="userFormTitle">Add New User</h2>
-          <form id="userForm">
+          <form id="userForm" enctype="multipart/form-data">
             <input type="hidden" id="userId">
             <div class="form-grid">
               <div class="form-group">
@@ -772,6 +765,16 @@
                 <label for="password" id="passwordLabel">Password *</label>
                 <input type="password" id="password" placeholder="Min 8 characters" required minlength="8">
               </div>
+              <div class="form-group full-width">
+                <label>User Profile Image (optional)</label>
+                <div class="image-upload-area">
+                  <div class="upload-icon">&#128247;</div>
+                  <p>Click to upload profile image</p>
+                  <p class="file-name" id="userFileName"></p>
+                  <img id="userImagePreview" class="image-preview" style="display:none;" alt="User Preview">
+                  <input type="file" id="userImage" accept="image/jpeg,image/png,image/gif,image/webp" onchange="previewUserImage(this)">
+                </div>
+              </div>
               <div class="form-actions">
                 <button type="submit" class="btn btn-primary" id="userSubmitBtn">Add User</button>
                 <button type="button" class="btn btn-secondary" id="userCancelBtn" style="display:none;" onclick="resetUserForm()">Cancel</button>
@@ -789,6 +792,7 @@
               <thead>
                 <tr>
                   <th>ID</th>
+                  <th>Image</th>
                   <th>Name</th>
                   <th>Email</th>
                   <th>Phone</th>
@@ -797,14 +801,115 @@
                 </tr>
               </thead>
               <tbody id="usersTableBody">
-                <tr><td colspan="6" class="empty-state">Loading users...</td></tr>
+                <tr><td colspan="7" class="empty-state">Loading users...</td></tr>
               </tbody>
             </table>
           </div>
         </div>
       </div>
 
-      <!-- ==================== BOOKS SECTION ==================== -->
+      <div id="section-book-master" class="section">
+        <div id="bookMasterAlert" class="alert"></div>
+
+        <div class="card">
+          <h2 id="bookMasterFormTitle">Add Book Master</h2>
+          <form id="bookMasterForm">
+            <input type="hidden" id="bookMasterId">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="masterBookName">Book Name *</label>
+                <input type="text" id="masterBookName" required minlength="2" maxlength="100" placeholder="Book name">
+              </div>
+              <div class="form-group">
+                <label for="masterAuthorName">Author *</label>
+                <input type="text" id="masterAuthorName" required minlength="2" maxlength="100" placeholder="Author name">
+              </div>
+              <div class="form-group">
+                <label for="masterPublisherName">Publisher *</label>
+                <input type="text" id="masterPublisherName" required minlength="2" maxlength="100" placeholder="Publisher name">
+              </div>
+              <div class="form-group">
+                <label for="masterIsbn">ISBN (optional)</label>
+                <input type="text" id="masterIsbn" maxlength="20" placeholder="ISBN number">
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary" id="bookMasterSubmitBtn">Add Book Master</button>
+                <button type="button" class="btn btn-secondary" id="bookMasterCancelBtn" style="display:none;" onclick="resetBookMasterForm()">Cancel</button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Book Master List</h2>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Book Name</th>
+                  <th>Author</th>
+                  <th>Publisher</th>
+                  <th>ISBN</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="bookMasterBody">
+                <tr><td colspan="6" class="empty-state">Loading book master data...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="section-class-master" class="section">
+        <div id="classMasterAlert" class="alert"></div>
+
+        <div class="card">
+          <h2 id="classMasterFormTitle">Add Branch/Class</h2>
+          <form id="classMasterForm">
+            <input type="hidden" id="classMasterId">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="className">Class/Branch Name *</label>
+                <input type="text" id="className" required maxlength="100" placeholder="e.g. Class 10, Science, Main Branch">
+              </div>
+              <div class="form-group">
+                <label for="classDescription">Description (optional)</label>
+                <textarea id="classDescription" maxlength="300" placeholder="Optional description"></textarea>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary" id="classMasterSubmitBtn">Add Class</button>
+                <button type="button" class="btn btn-secondary" id="classMasterCancelBtn" style="display:none;" onclick="resetClassMasterForm()">Cancel</button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Class/Branch Master List</h2>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Class/Branch Name</th>
+                  <th>Description</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="classMasterBody">
+                <tr><td colspan="4" class="empty-state">Loading class master data...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div id="section-books" class="section">
         <div id="bookAlert" class="alert"></div>
 
@@ -814,20 +919,30 @@
             <input type="hidden" id="bookId">
             <div class="form-grid">
               <div class="form-group">
-                <label for="bookName">Book Name *</label>
-                <input type="text" id="bookName" placeholder="Enter book name" required minlength="2" maxlength="100">
+                <label for="bookMasterSelect">Book Name *</label>
+                <select id="bookMasterSelect" required onchange="onBookMasterChange()">
+                  <option value="">Select Book from Book Master</option>
+                </select>
+                <div class="hint-text">Values are loaded from Book Master.</div>
               </div>
               <div class="form-group">
-                <label for="bookClass">Class *</label>
-                <input type="text" id="bookClass" placeholder="e.g. Class 10, Fiction" required maxlength="50">
+                <label for="bookClassSelect">Class *</label>
+                <select id="bookClassSelect" required>
+                  <option value="">Select Class from Branch/Class Master</option>
+                </select>
+                <div class="hint-text">Values are loaded from Branch/Class Master.</div>
               </div>
               <div class="form-group">
-                <label for="authorName">Author Name *</label>
-                <input type="text" id="authorName" placeholder="Enter author name" required minlength="2" maxlength="100">
+                <label for="authorName">Author Name</label>
+                <input type="text" id="authorName" class="readonly-input" readonly>
               </div>
               <div class="form-group">
-                <label for="publisherName">Publisher Name *</label>
-                <input type="text" id="publisherName" placeholder="Enter publisher name" required minlength="2" maxlength="100">
+                <label for="publisherName">Publisher Name</label>
+                <input type="text" id="publisherName" class="readonly-input" readonly>
+              </div>
+              <div class="form-group">
+                <label for="isbn">ISBN</label>
+                <input type="text" id="isbn" class="readonly-input" readonly>
               </div>
               <div class="form-group">
                 <label for="totalCopies">Total Copies *</label>
@@ -835,12 +950,12 @@
               </div>
               <div class="form-group full-width">
                 <label>Book Image (optional)</label>
-                <div class="image-upload-area" id="imageUploadArea">
+                <div class="image-upload-area">
                   <div class="upload-icon">&#128247;</div>
-                  <p>Click or drag to upload an image</p>
-                  <p class="file-name" id="fileName"></p>
-                  <img id="imagePreview" class="image-preview" style="display:none;">
-                  <input type="file" id="bookImage" accept="image/jpeg,image/png,image/gif,image/webp" onchange="previewImage(this)">
+                  <p>Click to upload an image</p>
+                  <p class="file-name" id="bookFileName"></p>
+                  <img id="bookImagePreview" class="image-preview" style="display:none;" alt="Book Preview">
+                  <input type="file" id="bookImage" accept="image/jpeg,image/png,image/gif,image/webp" onchange="previewBookImage(this)">
                 </div>
               </div>
               <div class="form-actions">
@@ -879,11 +994,9 @@
         </div>
       </div>
 
-      <!-- ==================== ISSUE BOOKS SECTION ==================== -->
       <div id="section-issue-books" class="section">
         <div id="issueAlert" class="alert"></div>
 
-        <!-- Issue Summary Cards -->
         <div class="issue-summary-grid">
           <div class="summary-card">
             <div class="summary-icon s-issued">&#128196;</div>
@@ -909,7 +1022,7 @@
         </div>
 
         <div class="card">
-          <h2 id="issueFormTitle">Issue a Book</h2>
+          <h2>Issue a Book</h2>
           <form id="issueForm">
             <div class="form-grid">
               <div class="form-group">
@@ -929,8 +1042,8 @@
                 <input type="date" id="issueDate" required>
               </div>
               <div class="form-group">
-                <label for="dueDate">Due Date</label>
-                <input type="date" id="dueDate" required>
+                <label for="dueDate">Due Date (Optional)</label>
+                <input type="date" id="dueDate">
               </div>
               <div class="form-actions">
                 <button type="submit" class="btn btn-primary">Issue Book</button>
@@ -968,7 +1081,6 @@
         </div>
       </div>
 
-      <!-- ==================== FINES SECTION ==================== -->
       <div id="section-fines" class="section">
         <div id="fineAlert" class="alert"></div>
 
@@ -1002,62 +1114,170 @@
                   <th>Book Title</th>
                   <th>Days Overdue</th>
                   <th>Fine Amount</th>
+                  <th>Payment Type</th>
                   <th>Status</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody id="finesTableBody">
-                <tr><td colspan="7" class="empty-state">Loading fines...</td></tr>
+                <tr><td colspan="8" class="empty-state">Loading fines...</td></tr>
               </tbody>
             </table>
           </div>
         </div>
       </div>
 
-    </div><!-- /.main-content -->
-  </div><!-- /.layout -->
+      <div id="section-fine-payments" class="section">
+        <div id="finePaymentAlert" class="alert"></div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Fine Payment Records</h2>
+          </div>
+          <div class="table-wrapper">
+            <table>
+              <thead>
+                <tr>
+                  <th>Payment ID</th>
+                  <th>Fine ID</th>
+                  <th>User</th>
+                  <th>Book</th>
+                  <th>Amount</th>
+                  <th>Payment Type</th>
+                  <th>Payment Status</th>
+                  <th>Gateway / Mode</th>
+                  <th>Reference</th>
+                  <th>Paid At</th>
+                </tr>
+              </thead>
+              <tbody id="finePaymentsTableBody">
+                <tr><td colspan="10" class="empty-state">Loading payment records...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="section-collect-fine" class="section">
+        <div id="collectFineAlert" class="alert"></div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Collect Fine Payment</h2>
+          </div>
+          <form id="collectFineForm" onsubmit="submitFineCollectionForm(event)">
+            <input type="hidden" id="collectFineId">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Fine ID</label>
+                <input type="text" id="collectFineDisplayId" disabled>
+              </div>
+              <div class="form-group">
+                <label>User</label>
+                <input type="text" id="collectFineUser" disabled>
+              </div>
+              <div class="form-group">
+                <label>Book</label>
+                <input type="text" id="collectFineBook" disabled>
+              </div>
+              <div class="form-group">
+                <label>Days Overdue</label>
+                <input type="text" id="collectFineDaysOverdue" disabled>
+              </div>
+              <div class="form-group">
+                <label>Fine Amount</label>
+                <input type="text" id="collectFineAmount" disabled>
+              </div>
+              <div class="form-group">
+                <label>Status</label>
+                <input type="text" id="collectFineStatus" disabled>
+              </div>
+              <div class="form-group">
+                <label for="collectPaymentType">Payment Method</label>
+                <select id="collectPaymentType" onchange="toggleCollectPaymentFields()" required>
+                  <option value="">Select payment method</option>
+                  <option value="Offline">Offline</option>
+                  <option value="Online">Online (PayPal)</option>
+                </select>
+              </div>
+              <div class="form-group" id="collectOfflineRefWrap" style="display:none;">
+                <label for="collectOfflineRef">Office Receipt/Reference</label>
+                <input type="text" id="collectOfflineRef" maxlength="60" placeholder="Optional office receipt/reference">
+              </div>
+              <div id="collectOnlineWrap" class="form-grid" style="display:none; grid-column: 1 / -1;">
+                <div class="form-group">
+                  <label>PayPal Checkout</label>
+                  <p style="font-size: 0.86rem; color: #4b5563; margin-bottom: 8px;">Click the PayPal button below to complete online payment.</p>
+                  <div id="collectPaypalButtonContainer"></div>
+                </div>
+              </div>
+              <div class="form-group" style="grid-column: 1 / -1;">
+                <label for="collectPaymentNotes">Notes (Optional)</label>
+                <textarea id="collectPaymentNotes" rows="3" maxlength="200" placeholder="Optional payment note"></textarea>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="submit" id="collectOfflineSubmitBtn" class="btn btn-primary">Complete Offline Payment</button>
+              <button type="button" class="btn btn-warning" onclick="cancelFineCollection()">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </div>
 
 <script>
-  // ============ CONFIG ============
   const BASE = '/mohit';
 
-  // Server already protects this page via cookie auth (requireAuth middleware).
-  // No client-side auth check needed — if we're here, we're authenticated.
+  let usersCache = [];
+  let booksCache = [];
+  let bookMasterCache = [];
+  let classMasterCache = [];
+  let allIssuedBooks = [];
+  let finesCache = [];
+  let selectedFineForCollection = null;
+  let collectPayPalSdkLoaded = false;
+  let collectPayPalButtonsRenderedForFineId = null;
 
   document.getElementById('headerUser').textContent = 'Welcome, Admin';
 
   async function logout() {
     try {
-      await fetch(BASE + '/api/logout', { method: 'POST' });
+      await fetch(BASE + '/api/logout', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }
+      });
     } catch {}
-    sessionStorage.removeItem('loggedIn');
-    sessionStorage.removeItem('loggedInUser');
+    sessionStorage.clear();
+    document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/mohit;';
+    document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/mohit/;';
     window.location.href = BASE + '/login.html';
   }
 
-  // ============ SIDEBAR NAVIGATION ============
-  function navigateTo(section, el) {
-    event.preventDefault();
+  function navigateTo(section, el, ev) {
+    if (ev && typeof ev.preventDefault === 'function') {
+      ev.preventDefault();
+    }
 
-    // Hide all sections
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-    // Show target section
-    document.getElementById('section-' + section).classList.add('active');
+    const target = document.getElementById('section-' + section);
+    if (target) target.classList.add('active');
 
-    // Update sidebar active state
     document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
     if (el) el.classList.add('active');
 
-    // Close sidebar on mobile
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebarOverlay').classList.remove('open');
 
-    // Load data for the section
     if (section === 'dashboard') loadDashboard();
     if (section === 'users') loadUsers();
+    if (section === 'book-master') loadBookMaster();
+    if (section === 'class-master') loadClassMaster();
     if (section === 'books') loadBooks();
     if (section === 'issue-books') loadIssueBooks();
     if (section === 'fines') loadFines();
+    if (section === 'fine-payments') loadFinePayments();
   }
 
   function toggleSidebar() {
@@ -1065,15 +1285,14 @@
     document.getElementById('sidebarOverlay').classList.toggle('open');
   }
 
-  // ============ UTILITIES ============
   function escapeHtml(text) {
     const div = document.createElement('div');
-    div.textContent = text;
+    div.textContent = text == null ? '' : String(text);
     return div.innerHTML;
   }
 
   function escapeAttr(text) {
-    return text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    return String(text || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
   }
 
   function showAlert(elementId, message, type) {
@@ -1081,10 +1300,68 @@
     alert.textContent = message;
     alert.className = 'alert alert-' + type;
     alert.style.display = 'block';
-    setTimeout(() => { alert.style.display = 'none'; }, 4000);
+    setTimeout(() => { alert.style.display = 'none'; }, 4500);
   }
 
-  // ============ DASHBOARD ============
+  async function parseJsonResponse(res, fallbackMessage) {
+    const raw = await res.text();
+    try {
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      const firstLine = String(raw || '').split('\n')[0].trim().slice(0, 80);
+      throw new Error(firstLine || fallbackMessage || 'Server returned an invalid response');
+    }
+  }
+
+  async function apiPostJson(apiPath, payload) {
+    const paths = [BASE + apiPath, apiPath];
+    let lastErr = null;
+
+    for (let i = 0; i < paths.length; i += 1) {
+      try {
+        const res = await fetch(paths[i], {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload || {})
+        });
+        const data = await parseJsonResponse(res, 'Invalid server response');
+        return { res, data };
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+
+    throw lastErr || new Error('Request failed');
+  }
+
+  async function apiGetJson(apiPath) {
+    const paths = [BASE + apiPath, apiPath];
+    let lastErr = null;
+
+    for (let i = 0; i < paths.length; i += 1) {
+      try {
+        const res = await fetch(paths[i]);
+        const data = await parseJsonResponse(res, 'Invalid server response');
+        return { res, data };
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+
+    throw lastErr || new Error('Request failed');
+  }
+
+  function renderUserAvatar(path, small = false) {
+    if (path) {
+      const cls = small ? 'avatar-small' : 'user-avatar';
+      return '<img src="' + BASE + escapeHtml(path) + '" class="' + cls + '" alt="User">';
+    }
+    if (small) {
+      return '<div class="avatar-placeholder small">&#128100;</div>';
+    }
+    return '<div class="avatar-placeholder">&#128100;</div>';
+  }
+
   async function loadDashboard() {
     try {
       const [statsRes, usersRes, booksRes] = await Promise.all([
@@ -1094,23 +1371,22 @@
       ]);
 
       const stats = await statsRes.json();
-      const users = await usersRes.json();
-      const books = await booksRes.json();
+      usersCache = await usersRes.json();
+      booksCache = await booksRes.json();
 
-      // Update stat counters
-      document.getElementById('totalUsers').textContent = stats.totalUsers;
-      document.getElementById('totalBooks').textContent = stats.totalBooks;
+      document.getElementById('totalUsers').textContent = stats.totalUsers || 0;
+      document.getElementById('totalBooks').textContent = stats.totalBooks || 0;
       document.getElementById('totalIssued').textContent = stats.totalIssued || 0;
 
-      // Recent users (last 5)
-      const recentUsers = users.slice(0, 5);
+      const recentUsers = usersCache.slice(0, 5);
       const ruBody = document.getElementById('recentUsersBody');
       if (recentUsers.length === 0) {
-        ruBody.innerHTML = '<tr><td colspan="4" class="empty-state">No users yet</td></tr>';
+        ruBody.innerHTML = '<tr><td colspan="5" class="empty-state">No users yet</td></tr>';
       } else {
         ruBody.innerHTML = recentUsers.map(u => `
           <tr>
             <td>${u.id}</td>
+            <td>${renderUserAvatar(u.profile_image, true)}</td>
             <td>${escapeHtml(u.full_name)}</td>
             <td>${escapeHtml(u.email)}</td>
             <td><span class="role-badge role-${u.role.toLowerCase()}">${u.role}</span></td>
@@ -1118,8 +1394,7 @@
         `).join('');
       }
 
-      // Recent books (last 5)
-      const recentBooks = books.slice(0, 5);
+      const recentBooks = booksCache.slice(0, 5);
       const rbBody = document.getElementById('recentBooksBody');
       if (recentBooks.length === 0) {
         rbBody.innerHTML = '<tr><td colspan="5" class="empty-state">No books yet</td></tr>';
@@ -1141,27 +1416,27 @@
     }
   }
 
-  // ============ USERS MANAGEMENT ============
   async function loadUsers() {
     try {
       const res = await fetch(BASE + '/api/users');
-      const users = await res.json();
+      usersCache = await res.json();
       const tbody = document.getElementById('usersTableBody');
 
-      if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No users found. Add one above.</td></tr>';
+      if (!usersCache.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No users found. Add one above.</td></tr>';
         return;
       }
 
-      tbody.innerHTML = users.map(u => `
+      tbody.innerHTML = usersCache.map(u => `
         <tr>
           <td>${u.id}</td>
+          <td>${renderUserAvatar(u.profile_image)}</td>
           <td>${escapeHtml(u.full_name)}</td>
           <td>${escapeHtml(u.email)}</td>
           <td>${escapeHtml(u.phone)}</td>
           <td><span class="role-badge role-${u.role.toLowerCase()}">${u.role}</span></td>
           <td class="actions">
-            <button class="btn btn-edit" onclick="editUser(${u.id}, '${escapeAttr(u.full_name)}', '${escapeAttr(u.email)}', '${escapeAttr(u.phone)}', '${u.role}')">Edit</button>
+            <button class="btn btn-edit" onclick="editUser(${u.id})">Edit</button>
             <button class="btn btn-danger" onclick="deleteUser(${u.id}, '${escapeAttr(u.full_name)}')">Delete</button>
           </td>
         </tr>
@@ -1171,31 +1446,50 @@
     }
   }
 
+  function previewUserImage(input) {
+    const preview = document.getElementById('userImagePreview');
+    const fileName = document.getElementById('userFileName');
+
+    if (input.files && input.files[0]) {
+      const file = input.files[0];
+      fileName.textContent = file.name;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        preview.src = e.target.result;
+        preview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    } else {
+      preview.style.display = 'none';
+      fileName.textContent = '';
+    }
+  }
+
   document.getElementById('userForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const id = document.getElementById('userId').value;
-    const data = {
-      full_name: document.getElementById('fullName').value.trim(),
-      email: document.getElementById('email').value.trim(),
-      phone: document.getElementById('phone').value.trim(),
-      role: document.getElementById('role').value,
-      password: document.getElementById('password').value
-    };
+    const full_name = document.getElementById('fullName').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const role = document.getElementById('role').value;
+    const password = document.getElementById('password').value;
+    const userImage = document.getElementById('userImage').files[0];
 
-    if (data.full_name.length < 2 || data.full_name.length > 50) {
+    if (full_name.length < 2 || full_name.length > 50) {
       showAlert('userAlert', 'Full Name must be between 2 and 50 characters', 'error');
       return;
     }
-    if (!/^\d{10}$/.test(data.phone)) {
+    if (!/^\d{10}$/.test(phone)) {
       showAlert('userAlert', 'Phone must be exactly 10 digits', 'error');
       return;
     }
-    if (!id && data.password.length < 8) {
+    if (!id && password.length < 8) {
       showAlert('userAlert', 'Password must be at least 8 characters', 'error');
       return;
     }
-    if (id && data.password.length > 0 && data.password.length < 8) {
+    if (id && password.length > 0 && password.length < 8) {
       showAlert('userAlert', 'Password must be at least 8 characters', 'error');
       return;
     }
@@ -1205,12 +1499,15 @@
       const url = isEdit ? BASE + '/api/users/' + id : BASE + '/api/users';
       const method = isEdit ? 'PUT' : 'POST';
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
+      const formData = new FormData();
+      formData.append('full_name', full_name);
+      formData.append('email', email);
+      formData.append('phone', phone);
+      formData.append('role', role);
+      formData.append('password', password);
+      if (userImage) formData.append('profile_image', userImage);
 
+      const res = await fetch(url, { method, body: formData });
       const result = await res.json();
 
       if (!res.ok) {
@@ -1220,21 +1517,37 @@
 
       showAlert('userAlert', isEdit ? 'User updated successfully' : 'User added successfully', 'success');
       resetUserForm();
-      loadUsers();
+      await loadUsers();
+      loadDashboard();
     } catch {
       showAlert('userAlert', 'Failed to save user', 'error');
     }
   });
 
-  function editUser(id, name, email, phone, role) {
-    document.getElementById('userId').value = id;
-    document.getElementById('fullName').value = name;
-    document.getElementById('email').value = email;
-    document.getElementById('phone').value = phone;
-    document.getElementById('role').value = role;
+  function editUser(id) {
+    const user = usersCache.find(u => Number(u.id) === Number(id));
+    if (!user) return;
+
+    document.getElementById('userId').value = user.id;
+    document.getElementById('fullName').value = user.full_name;
+    document.getElementById('email').value = user.email;
+    document.getElementById('phone').value = user.phone;
+    document.getElementById('role').value = user.role;
     document.getElementById('password').value = '';
     document.getElementById('password').required = false;
     document.getElementById('passwordLabel').textContent = 'Password (leave blank to keep current)';
+
+    const preview = document.getElementById('userImagePreview');
+    const fileName = document.getElementById('userFileName');
+    if (user.profile_image) {
+      preview.src = BASE + user.profile_image;
+      preview.style.display = 'block';
+      fileName.textContent = 'Current image (upload new to replace)';
+    } else {
+      preview.style.display = 'none';
+      fileName.textContent = '';
+    }
+
     document.getElementById('userFormTitle').textContent = 'Edit User #' + id;
     document.getElementById('userSubmitBtn').textContent = 'Update User';
     document.getElementById('userCancelBtn').style.display = 'inline-block';
@@ -1254,7 +1567,8 @@
       }
 
       showAlert('userAlert', 'User deleted successfully', 'success');
-      loadUsers();
+      await loadUsers();
+      loadDashboard();
     } catch {
       showAlert('userAlert', 'Failed to delete user', 'error');
     }
@@ -1268,21 +1582,266 @@
     document.getElementById('userFormTitle').textContent = 'Add New User';
     document.getElementById('userSubmitBtn').textContent = 'Add User';
     document.getElementById('userCancelBtn').style.display = 'none';
+    document.getElementById('userImagePreview').style.display = 'none';
+    document.getElementById('userFileName').textContent = '';
   }
 
-  // ============ BOOKS MANAGEMENT ============
+  async function loadBookMasterDropdown() {
+    const res = await fetch(BASE + '/api/book-master');
+    bookMasterCache = await res.json();
+
+    const select = document.getElementById('bookMasterSelect');
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">Select Book from Book Master</option>';
+    bookMasterCache.forEach(item => {
+      select.innerHTML += `<option value="${item.id}">${escapeHtml(item.book_name)}</option>`;
+    });
+    if (currentValue && bookMasterCache.some(x => String(x.id) === String(currentValue))) {
+      select.value = currentValue;
+    }
+  }
+
+  async function loadClassMasterDropdown() {
+    const res = await fetch(BASE + '/api/class-master');
+    classMasterCache = await res.json();
+
+    const select = document.getElementById('bookClassSelect');
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">Select Class from Branch/Class Master</option>';
+    classMasterCache.forEach(item => {
+      select.innerHTML += `<option value="${item.id}">${escapeHtml(item.class_name)}</option>`;
+    });
+    if (currentValue && classMasterCache.some(x => String(x.id) === String(currentValue))) {
+      select.value = currentValue;
+    }
+  }
+
+  function onBookMasterChange() {
+    const id = document.getElementById('bookMasterSelect').value;
+    const item = bookMasterCache.find(b => String(b.id) === String(id));
+    document.getElementById('authorName').value = item ? item.author_name : '';
+    document.getElementById('publisherName').value = item ? item.publisher_name : '';
+    document.getElementById('isbn').value = item && item.isbn ? item.isbn : '';
+  }
+
+  async function loadBookMaster() {
+    try {
+      const res = await fetch(BASE + '/api/book-master');
+      bookMasterCache = await res.json();
+      const tbody = document.getElementById('bookMasterBody');
+
+      if (!bookMasterCache.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No book master records found.</td></tr>';
+      } else {
+        tbody.innerHTML = bookMasterCache.map(b => `
+          <tr>
+            <td>${b.id}</td>
+            <td>${escapeHtml(b.book_name)}</td>
+            <td>${escapeHtml(b.author_name)}</td>
+            <td>${escapeHtml(b.publisher_name)}</td>
+            <td>${escapeHtml(b.isbn || '-')}</td>
+            <td class="actions">
+              <button class="btn btn-edit" onclick="editBookMaster(${b.id})">Edit</button>
+              <button class="btn btn-danger" onclick="deleteBookMaster(${b.id}, '${escapeAttr(b.book_name)}')">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      await loadBookMasterDropdown();
+    } catch {
+      showAlert('bookMasterAlert', 'Failed to load Book Master data', 'error');
+    }
+  }
+
+  document.getElementById('bookMasterForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const id = document.getElementById('bookMasterId').value;
+    const data = {
+      book_name: document.getElementById('masterBookName').value.trim(),
+      author_name: document.getElementById('masterAuthorName').value.trim(),
+      publisher_name: document.getElementById('masterPublisherName').value.trim(),
+      isbn: document.getElementById('masterIsbn').value.trim()
+    };
+
+    try {
+      const isEdit = !!id;
+      const res = await fetch(isEdit ? BASE + '/api/book-master/' + id : BASE + '/api/book-master', {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const result = await res.json();
+
+      if (!res.ok) {
+        showAlert('bookMasterAlert', result.error || 'Failed to save Book Master record', 'error');
+        return;
+      }
+
+      showAlert('bookMasterAlert', isEdit ? 'Book Master updated successfully' : 'Book Master added successfully', 'success');
+      resetBookMasterForm();
+      await loadBookMaster();
+      loadBooks();
+    } catch {
+      showAlert('bookMasterAlert', 'Failed to save Book Master record', 'error');
+    }
+  });
+
+  function editBookMaster(id) {
+    const row = bookMasterCache.find(b => Number(b.id) === Number(id));
+    if (!row) return;
+
+    document.getElementById('bookMasterId').value = row.id;
+    document.getElementById('masterBookName').value = row.book_name;
+    document.getElementById('masterAuthorName').value = row.author_name;
+    document.getElementById('masterPublisherName').value = row.publisher_name;
+    document.getElementById('masterIsbn').value = row.isbn || '';
+    document.getElementById('bookMasterFormTitle').textContent = 'Edit Book Master #' + id;
+    document.getElementById('bookMasterSubmitBtn').textContent = 'Update Book Master';
+    document.getElementById('bookMasterCancelBtn').style.display = 'inline-block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deleteBookMaster(id, name) {
+    if (!confirm('Delete Book Master record "' + name + '"?')) return;
+
+    try {
+      const res = await fetch(BASE + '/api/book-master/' + id, { method: 'DELETE' });
+      const result = await res.json();
+      if (!res.ok) {
+        showAlert('bookMasterAlert', result.error || 'Failed to delete Book Master record', 'error');
+        return;
+      }
+
+      showAlert('bookMasterAlert', 'Book Master record deleted successfully', 'success');
+      await loadBookMaster();
+      loadBooks();
+    } catch {
+      showAlert('bookMasterAlert', 'Failed to delete Book Master record', 'error');
+    }
+  }
+
+  function resetBookMasterForm() {
+    document.getElementById('bookMasterForm').reset();
+    document.getElementById('bookMasterId').value = '';
+    document.getElementById('bookMasterFormTitle').textContent = 'Add Book Master';
+    document.getElementById('bookMasterSubmitBtn').textContent = 'Add Book Master';
+    document.getElementById('bookMasterCancelBtn').style.display = 'none';
+  }
+
+  async function loadClassMaster() {
+    try {
+      const res = await fetch(BASE + '/api/class-master');
+      classMasterCache = await res.json();
+      const tbody = document.getElementById('classMasterBody');
+
+      if (!classMasterCache.length) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No class/branch records found.</td></tr>';
+      } else {
+        tbody.innerHTML = classMasterCache.map(c => `
+          <tr>
+            <td>${c.id}</td>
+            <td>${escapeHtml(c.class_name)}</td>
+            <td>${escapeHtml(c.description || '-')}</td>
+            <td class="actions">
+              <button class="btn btn-edit" onclick="editClassMaster(${c.id})">Edit</button>
+              <button class="btn btn-danger" onclick="deleteClassMaster(${c.id}, '${escapeAttr(c.class_name)}')">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      await loadClassMasterDropdown();
+    } catch {
+      showAlert('classMasterAlert', 'Failed to load class/branch master data', 'error');
+    }
+  }
+
+  document.getElementById('classMasterForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const id = document.getElementById('classMasterId').value;
+    const data = {
+      class_name: document.getElementById('className').value.trim(),
+      description: document.getElementById('classDescription').value.trim()
+    };
+
+    try {
+      const isEdit = !!id;
+      const res = await fetch(isEdit ? BASE + '/api/class-master/' + id : BASE + '/api/class-master', {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const result = await res.json();
+
+      if (!res.ok) {
+        showAlert('classMasterAlert', result.error || 'Failed to save class/branch record', 'error');
+        return;
+      }
+
+      showAlert('classMasterAlert', isEdit ? 'Class/branch updated successfully' : 'Class/branch added successfully', 'success');
+      resetClassMasterForm();
+      await loadClassMaster();
+      loadBooks();
+    } catch {
+      showAlert('classMasterAlert', 'Failed to save class/branch record', 'error');
+    }
+  });
+
+  function editClassMaster(id) {
+    const row = classMasterCache.find(c => Number(c.id) === Number(id));
+    if (!row) return;
+
+    document.getElementById('classMasterId').value = row.id;
+    document.getElementById('className').value = row.class_name;
+    document.getElementById('classDescription').value = row.description || '';
+    document.getElementById('classMasterFormTitle').textContent = 'Edit Class/Branch #' + id;
+    document.getElementById('classMasterSubmitBtn').textContent = 'Update Class';
+    document.getElementById('classMasterCancelBtn').style.display = 'inline-block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function deleteClassMaster(id, name) {
+    if (!confirm('Delete class/branch "' + name + '"?')) return;
+
+    try {
+      const res = await fetch(BASE + '/api/class-master/' + id, { method: 'DELETE' });
+      const result = await res.json();
+      if (!res.ok) {
+        showAlert('classMasterAlert', result.error || 'Failed to delete class/branch', 'error');
+        return;
+      }
+
+      showAlert('classMasterAlert', 'Class/branch deleted successfully', 'success');
+      await loadClassMaster();
+      loadBooks();
+    } catch {
+      showAlert('classMasterAlert', 'Failed to delete class/branch', 'error');
+    }
+  }
+
+  function resetClassMasterForm() {
+    document.getElementById('classMasterForm').reset();
+    document.getElementById('classMasterId').value = '';
+    document.getElementById('classMasterFormTitle').textContent = 'Add Branch/Class';
+    document.getElementById('classMasterSubmitBtn').textContent = 'Add Class';
+    document.getElementById('classMasterCancelBtn').style.display = 'none';
+  }
+
   async function loadBooks() {
     try {
-      const res = await fetch(BASE + '/api/books');
-      const books = await res.json();
-      const tbody = document.getElementById('booksTableBody');
+      const [booksRes] = await Promise.all([fetch(BASE + '/api/books'), loadBookMasterDropdown(), loadClassMasterDropdown()]);
+      booksCache = await booksRes.json();
 
-      if (books.length === 0) {
+      const tbody = document.getElementById('booksTableBody');
+      if (!booksCache.length) {
         tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No books found. Add one above.</td></tr>';
         return;
       }
 
-      tbody.innerHTML = books.map(b => {
+      tbody.innerHTML = booksCache.map(b => {
         const totalCopies = b.total_copies || 1;
         const availableCopies = b.available_copies !== undefined ? b.available_copies : totalCopies;
         const statusBadge = availableCopies > 0
@@ -1290,32 +1849,32 @@
           : '<span class="badge-not-available">Not Available</span>';
 
         return `
-        <tr>
-          <td>${b.id}</td>
-          <td>${b.book_image
-            ? '<img src="' + BASE + escapeHtml(b.book_image) + '" class="book-thumb" alt="Book">'
-            : '<div class="book-thumb-placeholder">&#128214;</div>'}</td>
-          <td>${escapeHtml(b.book_name)}</td>
-          <td>${escapeHtml(b.class)}</td>
-          <td>${escapeHtml(b.author_name)}</td>
-          <td>${escapeHtml(b.publisher_name)}</td>
-          <td>${totalCopies}</td>
-          <td>${availableCopies}</td>
-          <td>${statusBadge}</td>
-          <td class="actions">
-            <button class="btn btn-edit" onclick="editBook(${b.id})">Edit</button>
-            <button class="btn btn-danger" onclick="deleteBook(${b.id}, '${escapeAttr(b.book_name)}')">Delete</button>
-          </td>
-        </tr>`;
+          <tr>
+            <td>${b.id}</td>
+            <td>${b.book_image
+              ? '<img src="' + BASE + escapeHtml(b.book_image) + '" class="book-thumb" alt="Book">'
+              : '<div class="book-thumb-placeholder">&#128214;</div>'}</td>
+            <td>${escapeHtml(b.book_name)}</td>
+            <td>${escapeHtml(b.class)}</td>
+            <td>${escapeHtml(b.author_name)}</td>
+            <td>${escapeHtml(b.publisher_name)}</td>
+            <td>${totalCopies}</td>
+            <td>${availableCopies}</td>
+            <td>${statusBadge}</td>
+            <td class="actions">
+              <button class="btn btn-edit" onclick="editBook(${b.id})">Edit</button>
+              <button class="btn btn-danger" onclick="deleteBook(${b.id}, '${escapeAttr(b.book_name)}')">Delete</button>
+            </td>
+          </tr>`;
       }).join('');
     } catch {
       showAlert('bookAlert', 'Failed to load books', 'error');
     }
   }
 
-  function previewImage(input) {
-    const preview = document.getElementById('imagePreview');
-    const fileName = document.getElementById('fileName');
+  function previewBookImage(input) {
+    const preview = document.getElementById('bookImagePreview');
+    const fileName = document.getElementById('bookFileName');
 
     if (input.files && input.files[0]) {
       const file = input.files[0];
@@ -1337,45 +1896,29 @@
     e.preventDefault();
 
     const id = document.getElementById('bookId').value;
-    const bookName = document.getElementById('bookName').value.trim();
-    const bookClass = document.getElementById('bookClass').value.trim();
-    const authorName = document.getElementById('authorName').value.trim();
-    const publisherName = document.getElementById('publisherName').value.trim();
+    const bookMasterId = document.getElementById('bookMasterSelect').value;
+    const classMasterId = document.getElementById('bookClassSelect').value;
+    const totalCopies = document.getElementById('totalCopies').value;
     const bookImage = document.getElementById('bookImage').files[0];
 
-    // Client-side validation
-    if (bookName.length < 2 || bookName.length > 100) {
-      showAlert('bookAlert', 'Book Name must be between 2 and 100 characters', 'error');
+    if (!bookMasterId) {
+      showAlert('bookAlert', 'Please select Book Name from Book Master', 'error');
       return;
     }
-    if (!bookClass || bookClass.length > 50) {
-      showAlert('bookAlert', 'Class is required (max 50 characters)', 'error');
+    if (!classMasterId) {
+      showAlert('bookAlert', 'Please select Class from Branch/Class Master', 'error');
       return;
     }
-    if (authorName.length < 2 || authorName.length > 100) {
-      showAlert('bookAlert', 'Author Name must be between 2 and 100 characters', 'error');
-      return;
-    }
-    if (publisherName.length < 2 || publisherName.length > 100) {
-      showAlert('bookAlert', 'Publisher Name must be between 2 and 100 characters', 'error');
-      return;
-    }
-
-    const totalCopies = document.getElementById('totalCopies').value;
-    if (!totalCopies || parseInt(totalCopies) < 1 || parseInt(totalCopies) > 9999) {
+    if (!totalCopies || parseInt(totalCopies, 10) < 1 || parseInt(totalCopies, 10) > 9999) {
       showAlert('bookAlert', 'Total Copies must be between 1 and 9999', 'error');
       return;
     }
 
     const formData = new FormData();
-    formData.append('book_name', bookName);
-    formData.append('class', bookClass);
-    formData.append('author_name', authorName);
-    formData.append('publisher_name', publisherName);
+    formData.append('book_master_id', bookMasterId);
+    formData.append('class_master_id', classMasterId);
     formData.append('total_copies', totalCopies);
-    if (bookImage) {
-      formData.append('book_image', bookImage);
-    }
+    if (bookImage) formData.append('book_image', bookImage);
 
     try {
       const isEdit = !!id;
@@ -1392,7 +1935,8 @@
 
       showAlert('bookAlert', isEdit ? 'Book updated successfully' : 'Book added successfully', 'success');
       resetBookForm();
-      loadBooks();
+      await loadBooks();
+      loadDashboard();
     } catch {
       showAlert('bookAlert', 'Failed to save book', 'error');
     }
@@ -1400,23 +1944,20 @@
 
   async function editBook(id) {
     try {
-      const res = await fetch(BASE + '/api/books');
-      const books = await res.json();
-      const book = books.find(b => b.id === id);
+      await Promise.all([loadBookMasterDropdown(), loadClassMasterDropdown()]);
+      const book = booksCache.find(b => Number(b.id) === Number(id));
       if (!book) return;
 
       document.getElementById('bookId').value = book.id;
-      document.getElementById('bookName').value = book.book_name;
-      document.getElementById('bookClass').value = book.class;
-      document.getElementById('authorName').value = book.author_name;
-      document.getElementById('publisherName').value = book.publisher_name;
+      document.getElementById('bookMasterSelect').value = book.book_master_id || '';
+      onBookMasterChange();
+      document.getElementById('bookClassSelect').value = book.class_master_id || '';
       document.getElementById('totalCopies').value = book.total_copies || 1;
 
-      // Show existing image preview
-      const preview = document.getElementById('imagePreview');
-      const fileName = document.getElementById('fileName');
+      const preview = document.getElementById('bookImagePreview');
+      const fileName = document.getElementById('bookFileName');
       if (book.book_image) {
-        preview.src = book.book_image;
+        preview.src = BASE + book.book_image;
         preview.style.display = 'block';
         fileName.textContent = 'Current image (upload new to replace)';
       } else {
@@ -1446,7 +1987,8 @@
       }
 
       showAlert('bookAlert', 'Book deleted successfully', 'success');
-      loadBooks();
+      await loadBooks();
+      loadDashboard();
     } catch {
       showAlert('bookAlert', 'Failed to delete book', 'error');
     }
@@ -1456,15 +1998,15 @@
     document.getElementById('bookForm').reset();
     document.getElementById('bookId').value = '';
     document.getElementById('totalCopies').value = 1;
-    document.getElementById('imagePreview').style.display = 'none';
-    document.getElementById('fileName').textContent = '';
+    document.getElementById('bookImagePreview').style.display = 'none';
+    document.getElementById('bookFileName').textContent = '';
+    document.getElementById('authorName').value = '';
+    document.getElementById('publisherName').value = '';
+    document.getElementById('isbn').value = '';
     document.getElementById('bookFormTitle').textContent = 'Add New Book';
     document.getElementById('bookSubmitBtn').textContent = 'Add Book';
     document.getElementById('bookCancelBtn').style.display = 'none';
   }
-
-  // ============ ISSUE BOOKS MANAGEMENT ============
-  let allIssuedBooks = []; // Store for search filtering
 
   function formatYmd(dateObj) {
     const y = dateObj.getFullYear();
@@ -1473,55 +2015,75 @@
     return `${y}-${m}-${d}`;
   }
 
-  // Auto-set Issue Date and Due Date fields in the form (calendar inputs)
   function setIssueDates() {
-    const today = new Date();
-    const dueDate = new Date(today);
-    dueDate.setDate(dueDate.getDate() + 14);
-    document.getElementById('issueDate').value = formatYmd(today);
-    document.getElementById('dueDate').value = formatYmd(dueDate);
+    document.getElementById('issueDate').value = '';
+    document.getElementById('dueDate').value = '';
   }
 
   function formatDate(dateStr) {
     if (!dateStr) return '-';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '-';
-    return d.toLocaleDateString();
+    const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      const [, y, m, d] = match;
+      return `${d}/${m}/${y}`;
+    }
+    const dt = new Date(dateStr);
+    if (isNaN(dt.getTime())) return '-';
+    const dd = String(dt.getDate()).padStart(2, '0');
+    const mm = String(dt.getMonth() + 1).padStart(2, '0');
+    const yy = dt.getFullYear();
+    return `${dd}/${mm}/${yy}`;
+  }
+
+  function getPolicyDueDate(issueDateStr) {
+    const issueDate = new Date(issueDateStr);
+    if (isNaN(issueDate.getTime())) return null;
+    issueDate.setHours(0, 0, 0, 0);
+    issueDate.setDate(issueDate.getDate() + 14);
+    return issueDate;
   }
 
   function getStatusInfo(ib) {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
-    if (ib.status === 'Returned') {
+
+    if (String(ib.status || '').trim().toLowerCase() === 'returned') {
       return { badge: '<span class="badge-returned">Returned</span>', label: 'Returned' };
     }
-    // Check if overdue (status is Issued and due_date has passed)
-    if (ib.due_date) {
-      const due = new Date(ib.due_date);
-      due.setHours(0, 0, 0, 0);
-      if (due < now) {
-        return { badge: '<span class="badge-overdue">Overdue</span>', label: 'Overdue' };
-      }
+
+    const policyDueDate = getPolicyDueDate(ib.issue_date);
+    if (policyDueDate && policyDueDate < now) {
+      return { badge: '<span class="badge-overdue">Overdue</span>', label: 'Overdue' };
     }
+
     return { badge: '<span class="badge-issued">Issued</span>', label: 'Issued' };
   }
 
   function renderIssuedBooks(books) {
     const tbody = document.getElementById('issuedBooksBody');
-    if (books.length === 0) {
+    if (!books.length) {
       tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No books issued yet.</td></tr>';
       return;
     }
 
     tbody.innerHTML = books.map(ib => {
       const issueDate = formatDate(ib.issue_date);
-      const dueDate = formatDate(ib.due_date);
+      let dueDateDisplay;
+      if (ib.due_date) {
+        dueDateDisplay = formatDate(ib.due_date);
+      } else {
+        const policyDue = getPolicyDueDate(ib.issue_date);
+        dueDateDisplay = policyDue ? formatDate(formatYmd(policyDue)) : '-';
+      }
       const returnDate = formatDate(ib.return_date);
       const statusInfo = getStatusInfo(ib);
-      const defaultReturnDate = formatYmd(new Date());
-      const actionBtn = ib.status === 'Issued'
-        ? `<div class="actions"><input type="date" id="returnDate-${ib.id}" value="${defaultReturnDate}"><button class="btn btn-return" onclick="returnBook(${ib.id}, '${escapeAttr(ib.book_name)}')">Return</button></div>`
-        : '';
+      let defaultReturnDate = formatYmd(new Date());
+      if (ib.return_date) {
+        const m = String(ib.return_date).match(/^(\d{4}-\d{2}-\d{2})/);
+        defaultReturnDate = m ? m[1] : formatYmd(new Date(ib.return_date));
+      }
+      const isReturned = String(ib.status || '').trim().toLowerCase() === 'returned';
+      const actionBtnLabel = isReturned ? 'Update Return Date' : 'Return';
 
       return `
       <tr>
@@ -1531,10 +2093,16 @@
         <td>${escapeHtml(ib.user_name)}</td>
         <td>${escapeHtml(ib.user_email)}</td>
         <td>${issueDate}</td>
-        <td>${dueDate}</td>
+        <td>${dueDateDisplay}</td>
         <td>${returnDate}</td>
         <td>${statusInfo.badge}</td>
-        <td class="actions">${actionBtn}</td>
+        <td>
+          <div class="actions" style="flex-wrap:wrap;gap:6px;">
+            <input type="date" id="returnDate-${ib.id}" value="${defaultReturnDate}" style="padding:4px 6px;font-size:12px;border:1px solid #ddd;border-radius:4px;">
+            <button class="btn btn-return" onclick="returnBook(${ib.id}, '${escapeAttr(ib.book_name)}')">${actionBtnLabel}</button>
+            <button class="btn btn-danger" onclick="deleteIssuedBook(${ib.id}, '${escapeAttr(ib.book_name)}')">Delete</button>
+          </div>
+        </td>
       </tr>`;
     }).join('');
   }
@@ -1565,20 +2133,14 @@
       document.getElementById('summaryIssued').textContent = summary.totalIssued || 0;
       document.getElementById('summaryReturned').textContent = summary.totalReturned || 0;
       document.getElementById('summaryOverdue').textContent = summary.totalOverdue || 0;
-    } catch {
-      // Silent fail - summary is non-critical
-    }
+    } catch {}
   }
 
   async function loadIssueBooks() {
     try {
-      // Set issue/due date fields in the form
       setIssueDates();
-
-      // Load summary stats
       loadIssueSummary();
 
-      // Load available books for dropdown
       const booksRes = await fetch(BASE + '/api/books/available');
       const availableBooks = await booksRes.json();
       const bookSelect = document.getElementById('issueBook');
@@ -1587,20 +2149,17 @@
         bookSelect.innerHTML += `<option value="${b.id}">${escapeHtml(b.book_name)} - ${escapeHtml(b.author_name)} (${b.available_copies} available)</option>`;
       });
 
-      // Load users for dropdown
       const usersRes = await fetch(BASE + '/api/users');
-      const users = await usersRes.json();
+      usersCache = await usersRes.json();
       const userSelect = document.getElementById('issueUser');
       userSelect.innerHTML = '<option value="">Select a User</option>';
-      users.forEach(u => {
+      usersCache.forEach(u => {
         userSelect.innerHTML += `<option value="${u.id}">${escapeHtml(u.full_name)} (${escapeHtml(u.email)})</option>`;
       });
 
-      // Load issued books list
       const issuedRes = await fetch(BASE + '/api/issued-books');
       allIssuedBooks = await issuedRes.json();
 
-      // Clear search box and render all
       document.getElementById('issueSearchBox').value = '';
       renderIssuedBooks(allIssuedBooks);
     } catch {
@@ -1628,11 +2187,7 @@
       showAlert('issueAlert', 'Please select issue date', 'error');
       return;
     }
-    if (!due_date) {
-      showAlert('issueAlert', 'Please select due date', 'error');
-      return;
-    }
-    if (due_date < issue_date) {
+    if (due_date && due_date < issue_date) {
       showAlert('issueAlert', 'Due date cannot be earlier than issue date', 'error');
       return;
     }
@@ -1645,7 +2200,7 @@
           book_id: parseInt(book_id, 10),
           user_id: parseInt(user_id, 10),
           issue_date,
-          due_date
+          due_date: due_date || null
         })
       });
 
@@ -1658,8 +2213,8 @@
 
       showAlert('issueAlert', 'Book issued successfully', 'success');
       document.getElementById('issueForm').reset();
-      setIssueDates(); // Reset the date fields after form reset
       loadIssueBooks();
+      loadDashboard();
     } catch {
       showAlert('issueAlert', 'Failed to issue book', 'error');
     }
@@ -1688,43 +2243,63 @@
         return;
       }
 
-      showAlert('issueAlert', 'Book returned successfully', 'success');
+      showAlert('issueAlert', result.message || 'Book returned successfully', 'success');
       loadIssueBooks();
+      loadDashboard();
     } catch {
       showAlert('issueAlert', 'Failed to return book', 'error');
     }
   }
 
-  document.getElementById('issueDate').addEventListener('change', (e) => {
-    const selected = e.target.value;
-    if (!selected) return;
-    const d = new Date(selected + 'T00:00:00');
-    d.setDate(d.getDate() + 14);
-    document.getElementById('dueDate').value = formatYmd(d);
-  });
+  async function deleteIssuedBook(id, bookName) {
+    if (!confirm('Are you sure you want to delete the issued record for "' + bookName + '"? This action cannot be undone.')) return;
 
-  // ============ FINES MANAGEMENT ============
+    try {
+      const res = await fetch(BASE + '/api/issued-books/' + id, { method: 'DELETE' });
+      const result = await res.json();
+
+      if (!res.ok) {
+        showAlert('issueAlert', result.error || 'Failed to delete issued book record', 'error');
+        return;
+      }
+
+      showAlert('issueAlert', 'Issued book record deleted successfully', 'success');
+      loadIssueBooks();
+      loadDashboard();
+    } catch {
+      showAlert('issueAlert', 'Failed to delete issued book record', 'error');
+    }
+  }
+
   function renderFines(fines) {
     const tbody = document.getElementById('finesTableBody');
     if (!fines || fines.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No fines found.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No Fine Found — Fines are auto-generated when books are overdue beyond 14 days from the issue date.</td></tr>';
       return;
     }
 
     tbody.innerHTML = fines.map((f) => {
-      const statusBadge = f.status === 'Collected'
+      const statusNorm = String(f.status || '').trim().toLowerCase();
+      const statusBadge = statusNorm === 'collected'
         ? '<span class="badge-collected">Collected</span>'
         : '<span class="badge-pending">Pending</span>';
-      const actionBtn = f.status === 'Pending'
-        ? `<button class="btn btn-collect" onclick="collectFine(${f.id})">Collect</button>`
-        : '-';
+      const paymentTypeNorm = String(f.payment_type || '').trim().toLowerCase();
+      const paymentTypeBadge = paymentTypeNorm === 'online'
+        ? '<span class="badge-online">Online</span>'
+        : paymentTypeNorm === 'offline'
+        ? '<span class="badge-offline">Office/Offline</span>'
+        : '<span style="color:#888;">-</span>';
+      const actionBtn = statusNorm === 'pending'
+        ? `<button type="button" class="btn btn-collect" onclick="openFineCollectionPage(${Number(f.id || 0)})">Collect</button>`
+        : '<span style="color:#888;">-</span>';
       return `
         <tr>
-          <td>${f.id}</td>
-          <td>${escapeHtml(f.user_name)}</td>
-          <td>${escapeHtml(f.book_name)}</td>
-          <td>${f.days_overdue}</td>
-          <td>${Number(f.fine_amount || 0).toFixed(2)}</td>
+          <td>${f.id || '-'}</td>
+          <td>${escapeHtml(f.user_name || 'Unknown User')}</td>
+          <td>${escapeHtml(f.book_name || 'Unknown Book')}</td>
+          <td>${Number(f.days_overdue || 0)}</td>
+          <td>&#8377; ${Number(f.fine_amount || 0).toFixed(2)}</td>
+          <td>${paymentTypeBadge}</td>
           <td>${statusBadge}</td>
           <td class="actions">${actionBtn}</td>
         </tr>
@@ -1733,41 +2308,331 @@
   }
 
   async function loadFineSummary() {
-    const res = await fetch(BASE + '/api/fines/summary');
-    const summary = await res.json();
-    document.getElementById('summaryCollectedFines').textContent = Number(summary.totalCollected || 0).toFixed(2);
-    document.getElementById('summaryPendingFines').textContent = Number(summary.totalPending || 0).toFixed(2);
+    const { data: summary } = await apiGetJson('/api/fines/summary');
+    document.getElementById('summaryCollectedFines').textContent = '\u20B9 ' + Number(summary.totalCollected || 0).toFixed(2);
+    document.getElementById('summaryPendingFines').textContent = '\u20B9 ' + Number(summary.totalPending || 0).toFixed(2);
+    return summary;
   }
 
   async function loadFines() {
     try {
-      await loadFineSummary();
-      const res = await fetch(BASE + '/api/fines');
-      const fines = await res.json();
-      renderFines(fines);
+      const summary = await loadFineSummary();
+      const { data: fines } = await apiGetJson('/api/fines');
+      finesCache = Array.isArray(fines) ? fines : [];
+      const totalFineAmount = Number(summary.totalCollected || 0) + Number(summary.totalPending || 0);
+      const visibleFines = finesCache.filter((f) => Number(f.fine_amount || 0) > 0);
+      if (!visibleFines.length || totalFineAmount <= 0) {
+        renderFines([]);
+        return;
+      }
+      renderFines(visibleFines);
     } catch {
       showAlert('fineAlert', 'Failed to load fines', 'error');
     }
   }
 
-  async function collectFine(id) {
-    if (!confirm('Mark this fine as collected?')) return;
-    try {
-      const res = await fetch(BASE + '/api/fines/' + id + '/collect', { method: 'POST' });
-      const result = await res.json();
-      if (!res.ok) {
-        showAlert('fineAlert', result.error || 'Failed to collect fine', 'error');
-        return;
+  function setCollectFineFields(fine) {
+    document.getElementById('collectFineId').value = fine.id || '';
+    document.getElementById('collectFineDisplayId').value = fine.id || '-';
+    document.getElementById('collectFineUser').value = fine.user_name || 'Unknown User';
+    document.getElementById('collectFineBook').value = fine.book_name || 'Unknown Book';
+    document.getElementById('collectFineDaysOverdue').value = Number(fine.days_overdue || 0);
+    document.getElementById('collectFineAmount').value = '\u20B9 ' + Number(fine.fine_amount || 0).toFixed(2);
+    document.getElementById('collectFineStatus').value = fine.status || 'Pending';
+  }
+
+  function resetCollectFineForm() {
+    const form = document.getElementById('collectFineForm');
+    form.reset();
+    selectedFineForCollection = null;
+    collectPayPalButtonsRenderedForFineId = null;
+    const paypalContainer = document.getElementById('collectPaypalButtonContainer');
+    if (paypalContainer) paypalContainer.innerHTML = '';
+    document.getElementById('collectFineId').value = '';
+    document.getElementById('collectFineDisplayId').value = '';
+    document.getElementById('collectFineUser').value = '';
+    document.getElementById('collectFineBook').value = '';
+    document.getElementById('collectFineDaysOverdue').value = '';
+    document.getElementById('collectFineAmount').value = '';
+    document.getElementById('collectFineStatus').value = '';
+    toggleCollectPaymentFields();
+  }
+
+  async function loadCollectPayPalSdk() {
+    if (collectPayPalSdkLoaded && window.paypal) return;
+
+    const { res: cfgRes, data: cfg } = await apiGetJson('/api/paypal/client-id');
+    if (!cfgRes.ok) {
+      throw new Error(cfg.error || 'PayPal is not configured');
+    }
+
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://www.paypal.com/sdk/js?client-id=' + encodeURIComponent(cfg.client_id) + '&currency=' + encodeURIComponent(cfg.currency || 'USD');
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Failed to load PayPal SDK'));
+      document.head.appendChild(script);
+    });
+
+    collectPayPalSdkLoaded = true;
+  }
+
+  async function renderCollectPayPalButtons() {
+    const fineId = Number(document.getElementById('collectFineId').value || 0);
+    if (!fineId) return;
+    if (collectPayPalButtonsRenderedForFineId === fineId) return;
+
+    await loadCollectPayPalSdk();
+    if (!window.paypal) throw new Error('PayPal SDK not available');
+
+    const container = document.getElementById('collectPaypalButtonContainer');
+    container.innerHTML = '';
+
+    window.paypal.Buttons({
+      createOrder: async () => {
+        const { res, data } = await apiPostJson('/api/fines/' + fineId + '/paypal/create-order', {});
+        if (!res.ok || !data.order_id) {
+          throw new Error(data.error || 'Failed to create PayPal order');
+        }
+        return data.order_id;
+      },
+      onApprove: async (data) => {
+        const paymentNotes = document.getElementById('collectPaymentNotes').value.trim();
+        const { res, data: result } = await apiPostJson('/api/fines/' + fineId + '/collect', {
+          payment_type: 'Online',
+          payment_notes: paymentNotes,
+          paypal_order_id: data.orderID
+        });
+        if (!res.ok) {
+          showAlert('collectFineAlert', result.error || 'PayPal payment failed', 'error');
+          return;
+        }
+
+        showAlert('collectFineAlert', 'Fine payment successful via Online', 'success');
+        await Promise.all([loadFines(), loadFinePayments()]);
+        setTimeout(() => {
+          cancelFineCollection();
+          showAlert('fineAlert', 'Fine collected and payment record saved (Online)', 'success');
+        }, 700);
+      },
+      onError: (err) => {
+        const message = err && err.message ? err.message : 'Unable to process PayPal payment';
+        showAlert('collectFineAlert', message, 'error');
       }
-      showAlert('fineAlert', 'Fine collected successfully', 'success');
-      loadFines();
-    } catch {
-      showAlert('fineAlert', 'Failed to collect fine', 'error');
+    }).render('#collectPaypalButtonContainer');
+
+    collectPayPalButtonsRenderedForFineId = fineId;
+  }
+
+  async function toggleCollectPaymentFields() {
+    const type = document.getElementById('collectPaymentType').value;
+    const onlineWrap = document.getElementById('collectOnlineWrap');
+    const offlineWrap = document.getElementById('collectOfflineRefWrap');
+    const offlineSubmitBtn = document.getElementById('collectOfflineSubmitBtn');
+
+    if (type === 'Online') {
+      onlineWrap.style.display = 'grid';
+      offlineWrap.style.display = 'none';
+      offlineSubmitBtn.style.display = 'none';
+      try {
+        await renderCollectPayPalButtons();
+      } catch (err) {
+        showAlert('collectFineAlert', err.message || 'Failed to initialize PayPal', 'error');
+      }
+    } else if (type === 'Offline') {
+      onlineWrap.style.display = 'none';
+      offlineWrap.style.display = 'block';
+      offlineSubmitBtn.style.display = 'inline-flex';
+    } else {
+      onlineWrap.style.display = 'none';
+      offlineWrap.style.display = 'none';
+      offlineSubmitBtn.style.display = 'inline-flex';
     }
   }
 
-  // ============ INITIAL LOAD ============
-  loadDashboard();
+  function goToCollectFineSection() {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+    const section = document.getElementById('section-collect-fine');
+    if (section) section.classList.add('active');
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarOverlay').classList.remove('open');
+  }
+
+  async function openFineCollectionPage(fineId) {
+    const fineIdNumber = Number(fineId || 0);
+    if (!fineIdNumber) {
+      showAlert('fineAlert', 'Invalid fine selected', 'error');
+      return;
+    }
+
+    const cachedFine = Array.isArray(finesCache)
+      ? finesCache.find((row) => Number(row.id || 0) === fineIdNumber)
+      : null;
+    if (cachedFine) {
+      const cachedStatusNorm = String(cachedFine.status || '').trim().toLowerCase();
+      if (cachedStatusNorm !== 'pending') {
+        showAlert('fineAlert', 'This fine is already collected', 'error');
+        loadFines();
+        return;
+      }
+      selectedFineForCollection = cachedFine;
+      resetCollectFineForm();
+      selectedFineForCollection = cachedFine;
+      setCollectFineFields(cachedFine);
+      goToCollectFineSection();
+      return;
+    }
+
+    try {
+      const { res, data: fine } = await apiGetJson('/api/fines/' + fineIdNumber);
+      if (!res.ok) {
+        showAlert('fineAlert', fine.error || 'Failed to load fine details', 'error');
+        return;
+      }
+
+      const statusNorm = String(fine.status || '').trim().toLowerCase();
+      if (statusNorm !== 'pending') {
+        showAlert('fineAlert', 'This fine is already collected', 'error');
+        loadFines();
+        return;
+      }
+
+      selectedFineForCollection = fine;
+      resetCollectFineForm();
+      selectedFineForCollection = fine;
+      setCollectFineFields(fine);
+      goToCollectFineSection();
+    } catch {
+      showAlert('fineAlert', 'Failed to load fine details', 'error');
+    }
+  }
+
+  async function submitFineCollectionForm(ev) {
+    ev.preventDefault();
+
+    const fineId = Number(document.getElementById('collectFineId').value || 0);
+    const paymentType = document.getElementById('collectPaymentType').value;
+    const paymentNotes = document.getElementById('collectPaymentNotes').value.trim();
+
+    if (!fineId) {
+      showAlert('collectFineAlert', 'Invalid fine record', 'error');
+      return;
+    }
+    if (!paymentType) {
+      showAlert('collectFineAlert', 'Please select payment method', 'error');
+      return;
+    }
+
+    const payload = {
+      payment_type: paymentType,
+      payment_notes: paymentNotes
+    };
+
+    if (paymentType === 'Offline') {
+      const paymentRef = document.getElementById('collectOfflineRef').value.trim();
+      if (paymentRef) payload.payment_reference = paymentRef;
+    } else {
+      showAlert('collectFineAlert', 'For online payment, please use the PayPal button.', 'error');
+      return;
+    }
+
+    try {
+      const { res, data: result } = await apiPostJson('/api/fines/' + fineId + '/collect', payload);
+      if (!res.ok) {
+        showAlert('collectFineAlert', result.error || 'Failed to process payment', 'error');
+        return;
+      }
+
+      showAlert('collectFineAlert', 'Fine payment successful via ' + paymentType, 'success');
+      await Promise.all([loadFines(), loadFinePayments()]);
+      setTimeout(() => {
+        cancelFineCollection();
+        showAlert('fineAlert', 'Fine collected and payment record saved (' + paymentType + ')', 'success');
+      }, 700);
+    } catch {
+      showAlert('collectFineAlert', 'Failed to process payment', 'error');
+    }
+  }
+
+  function cancelFineCollection() {
+    resetCollectFineForm();
+    const finesNav = document.querySelector('.sidebar-nav a[data-section="fines"]');
+    navigateTo('fines', finesNav || null);
+  }
+
+  function renderFinePayments(rows) {
+    const tbody = document.getElementById('finePaymentsTableBody');
+    if (!rows || rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No payment records found.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows.map((r) => {
+      const typeNorm = String(r.payment_type || '').trim().toLowerCase();
+      const typeBadge = typeNorm === 'online'
+        ? '<span class="badge-online">Online</span>'
+        : '<span class="badge-offline">Office/Offline</span>';
+      const statusNorm = String(r.payment_status || '').trim().toLowerCase();
+      const statusBadge = statusNorm === 'success' || statusNorm === 'completed'
+        ? '<span class="badge-collected">Success</span>'
+        : statusNorm === 'failed'
+        ? '<span class="badge-pending">Failed</span>'
+        : escapeHtml(r.payment_status || '-');
+      const paidAt = r.paid_at ? new Date(r.paid_at).toLocaleString() : '-';
+      return `
+        <tr>
+          <td>${r.payment_id || r.id || '-'}</td>
+          <td>${r.fine_id || '-'}</td>
+          <td>${escapeHtml(r.user_name || 'Unknown User')}</td>
+          <td>${escapeHtml(r.book_name || 'Unknown Book')}</td>
+          <td>&#8377; ${Number(r.amount || 0).toFixed(2)}</td>
+          <td>${typeBadge}</td>
+          <td>${statusBadge}</td>
+          <td>${escapeHtml(r.payment_gateway || '-')}</td>
+          <td>${escapeHtml(r.payment_reference || r.transaction_id || '-')}</td>
+          <td>${escapeHtml(paidAt)}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function loadFinePayments() {
+    try {
+      const { res, data: rows } = await apiGetJson('/api/fine-payments');
+      if (!res.ok) {
+        showAlert('finePaymentAlert', rows.error || 'Failed to load payment records', 'error');
+        return;
+      }
+      renderFinePayments(Array.isArray(rows) ? rows : []);
+    } catch {
+      showAlert('finePaymentAlert', 'Failed to load payment records', 'error');
+    }
+  }
+
+  function openSectionFromHash() {
+    const section = String(window.location.hash || '').replace('#', '').trim();
+    if (!section) {
+      loadDashboard();
+      return;
+    }
+
+    const supported = ['dashboard', 'users', 'book-master', 'class-master', 'books', 'issue-books', 'fines', 'fine-payments'];
+    if (!supported.includes(section)) {
+      loadDashboard();
+      return;
+    }
+
+    const nav = document.querySelector('.sidebar-nav a[data-section="' + section + '"]');
+    navigateTo(section, nav || null);
+  }
+
+  Promise.all([
+    loadBookMasterDropdown().catch(() => {}),
+    loadClassMasterDropdown().catch(() => {})
+  ]).finally(() => {
+    openSectionFromHash();
+  });
 </script>
 
 </body>
