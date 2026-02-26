@@ -144,31 +144,60 @@ function generatePaymentReference(prefix) {
   return `${prefix}-${ts}${rand}`;
 }
 
-function getPayPalBaseUrl() {
+function getPayPalMode() {
   const mode = String(
-    process.env.PAYPAL_MODE ||
-    process.env.PAYPAL_ENV ||
-    process.env.PAYPAL_ENVIRONMENT ||
-    'sandbox'
+    getFirstEnvValue([
+      'PAYPAL_MODE',
+      'PAYPAL_ENV',
+      'PAYPAL_ENVIRONMENT',
+      'paypal_mode',
+      'paypal_env',
+      'paypal_environment'
+    ]) || 'sandbox'
   ).trim().toLowerCase();
+  return mode === 'live' ? 'live' : 'sandbox';
+}
+
+function getPayPalBaseUrl() {
+  const mode = getPayPalMode();
   return mode === 'live' ? 'https://api-m.paypal.com' : 'https://api-m.sandbox.paypal.com';
 }
 
 function getFirstEnvValue(keys) {
+  const env = process.env || {};
+  const envLowerMap = {};
+  for (const rawKey of Object.keys(env)) {
+    envLowerMap[rawKey.toLowerCase()] = env[rawKey];
+  }
+
   for (const key of keys) {
-    const value = String(process.env[key] || '').trim();
+    const candidateKeys = [
+      key,
+      key.replace(/[.\-]/g, '_'),
+      key.replace(/[._]/g, '-')
+    ];
+
+    let value = '';
+    for (const candidateKey of candidateKeys) {
+      const exactValue = env[candidateKey];
+      if (String(exactValue || '').trim()) {
+        value = String(exactValue).trim();
+        break;
+      }
+      const lowerValue = envLowerMap[candidateKey.toLowerCase()];
+      if (String(lowerValue || '').trim()) {
+        value = String(lowerValue).trim();
+        break;
+      }
+    }
+
     if (value) return value;
   }
   return '';
 }
 
 function getPayPalCredentials() {
-  const mode = String(
-    process.env.PAYPAL_MODE ||
-    process.env.PAYPAL_ENV ||
-    process.env.PAYPAL_ENVIRONMENT ||
-    'sandbox'
-  ).trim().toLowerCase();
+  const mode = getPayPalMode();
   const isLiveMode = mode === 'live';
 
   const clientId = getFirstEnvValue(
@@ -176,14 +205,32 @@ function getPayPalCredentials() {
       ? [
           'PAYPAL_LIVE_CLIENT_ID',
           'PAYPAL_CLIENT_ID_LIVE',
+          'PAYPAL_PRODUCTION_CLIENT_ID',
+          'PAYPAL_CLIENT_ID_PRODUCTION',
           'PAYPAL_CLIENT_ID',
-          'PAYPAL_CLIENTID'
+          'PAYPAL_CLIENTID',
+          'PAYPAL_PUBLIC_CLIENT_ID',
+          'PAYPAL_PUBLIC_KEY',
+          'REACT_APP_PAYPAL_CLIENT_ID',
+          'VITE_PAYPAL_CLIENT_ID',
+          'NEXT_PUBLIC_PAYPAL_CLIENT_ID',
+          'paypal_live_client_id',
+          'paypal_client_id'
         ]
       : [
           'PAYPAL_SANDBOX_CLIENT_ID',
           'PAYPAL_CLIENT_ID_SANDBOX',
+          'PAYPAL_TEST_CLIENT_ID',
+          'PAYPAL_CLIENT_ID_TEST',
           'PAYPAL_CLIENT_ID',
-          'PAYPAL_CLIENTID'
+          'PAYPAL_CLIENTID',
+          'PAYPAL_PUBLIC_CLIENT_ID',
+          'PAYPAL_PUBLIC_KEY',
+          'REACT_APP_PAYPAL_CLIENT_ID',
+          'VITE_PAYPAL_CLIENT_ID',
+          'NEXT_PUBLIC_PAYPAL_CLIENT_ID',
+          'paypal_sandbox_client_id',
+          'paypal_client_id'
         ]
   );
   const clientSecret = getFirstEnvValue(
@@ -191,14 +238,26 @@ function getPayPalCredentials() {
       ? [
           'PAYPAL_LIVE_CLIENT_SECRET',
           'PAYPAL_CLIENT_SECRET_LIVE',
+          'PAYPAL_PRODUCTION_CLIENT_SECRET',
+          'PAYPAL_CLIENT_SECRET_PRODUCTION',
           'PAYPAL_CLIENT_SECRET',
-          'PAYPAL_SECRET'
+          'PAYPAL_SECRET',
+          'REACT_APP_PAYPAL_CLIENT_SECRET',
+          'VITE_PAYPAL_CLIENT_SECRET',
+          'paypal_live_client_secret',
+          'paypal_client_secret'
         ]
       : [
           'PAYPAL_SANDBOX_CLIENT_SECRET',
           'PAYPAL_CLIENT_SECRET_SANDBOX',
+          'PAYPAL_TEST_CLIENT_SECRET',
+          'PAYPAL_CLIENT_SECRET_TEST',
           'PAYPAL_CLIENT_SECRET',
-          'PAYPAL_SECRET'
+          'PAYPAL_SECRET',
+          'REACT_APP_PAYPAL_CLIENT_SECRET',
+          'VITE_PAYPAL_CLIENT_SECRET',
+          'paypal_sandbox_client_secret',
+          'paypal_client_secret'
         ]
   );
 
@@ -209,7 +268,17 @@ function getPayPalCredentials() {
 }
 
 function getPayPalCurrencyCode() {
-  return String(process.env.PAYPAL_CURRENCY || process.env.CURRENCY || 'USD').trim().toUpperCase();
+  return String(
+    getFirstEnvValue([
+      'PAYPAL_CURRENCY',
+      'CURRENCY',
+      'PAYPAL_CURRENCY_CODE',
+      'REACT_APP_PAYPAL_CURRENCY',
+      'VITE_PAYPAL_CURRENCY',
+      'NEXT_PUBLIC_PAYPAL_CURRENCY',
+      'paypal_currency'
+    ]) || 'USD'
+  ).trim().toUpperCase();
 }
 
 function paypalHttpRequest(options, body, cb) {
