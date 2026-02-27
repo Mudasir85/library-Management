@@ -349,6 +349,92 @@
     .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 
+    .popup-stack {
+      position: fixed;
+      top: 76px;
+      right: 18px;
+      z-index: 2200;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: min(360px, calc(100vw - 24px));
+      pointer-events: none;
+    }
+
+    .popup-message {
+      border-radius: 8px;
+      padding: 12px 14px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+      border: 1px solid transparent;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.4;
+      transform: translateY(-8px);
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .popup-message.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .popup-success {
+      background: #e8f7ed;
+      color: #166534;
+      border-color: #bbf7d0;
+    }
+
+    .popup-error {
+      background: #fef2f2;
+      color: #991b1b;
+      border-color: #fecaca;
+    }
+
+    .popup-confirm-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 2300;
+      padding: 16px;
+    }
+
+    .popup-confirm-overlay.show {
+      display: flex;
+    }
+
+    .popup-confirm {
+      width: min(420px, 100%);
+      background: #fff;
+      border-radius: 10px;
+      padding: 18px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);
+      border: 1px solid #e5e7eb;
+    }
+
+    .popup-confirm h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      color: #111827;
+    }
+
+    .popup-confirm p {
+      margin: 0;
+      font-size: 14px;
+      color: #374151;
+      line-height: 1.5;
+    }
+
+    .popup-confirm-actions {
+      margin-top: 16px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
     .table-wrapper { overflow-x: auto; }
 
     table { width: 100%; border-collapse: collapse; }
@@ -583,6 +669,17 @@
   </style>
 </head>
 <body>
+  <div id="popupStack" class="popup-stack" aria-live="polite" aria-atomic="true"></div>
+  <div id="popupConfirmOverlay" class="popup-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="popupConfirmTitle">
+    <div class="popup-confirm">
+      <h3 id="popupConfirmTitle">Please Confirm</h3>
+      <p id="popupConfirmMessage"></p>
+      <div class="popup-confirm-actions">
+        <button id="popupConfirmCancel" type="button" class="btn btn-secondary">Cancel</button>
+        <button id="popupConfirmOk" type="button" class="btn btn-danger">Confirm</button>
+      </div>
+    </div>
+  </div>
 
   <div class="header">
     <div class="header-left">
@@ -1296,12 +1393,62 @@
     return String(text || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
   }
 
+  function showPopupMessage(message, type) {
+    const stack = document.getElementById('popupStack');
+    if (!stack) return;
+
+    const popup = document.createElement('div');
+    const popupType = type === 'success' ? 'popup-success' : 'popup-error';
+    popup.className = 'popup-message ' + popupType;
+    popup.textContent = message;
+
+    stack.appendChild(popup);
+    requestAnimationFrame(() => popup.classList.add('show'));
+
+    setTimeout(() => {
+      popup.classList.remove('show');
+      setTimeout(() => popup.remove(), 220);
+    }, 4200);
+  }
+
   function showAlert(elementId, message, type) {
-    const alert = document.getElementById(elementId);
-    alert.textContent = message;
-    alert.className = 'alert alert-' + type;
-    alert.style.display = 'block';
-    setTimeout(() => { alert.style.display = 'none'; }, 4500);
+    showPopupMessage(message, type);
+  }
+
+  function showConfirmPopup(message) {
+    return new Promise((resolve) => {
+      const overlay = document.getElementById('popupConfirmOverlay');
+      const text = document.getElementById('popupConfirmMessage');
+      const btnCancel = document.getElementById('popupConfirmCancel');
+      const btnOk = document.getElementById('popupConfirmOk');
+
+      text.textContent = message;
+      overlay.classList.add('show');
+
+      const cleanup = (result) => {
+        overlay.classList.remove('show');
+        btnCancel.removeEventListener('click', onCancel);
+        btnOk.removeEventListener('click', onOk);
+        overlay.removeEventListener('click', onOverlayClick);
+        document.removeEventListener('keydown', onEsc);
+        resolve(result);
+      };
+
+      const onCancel = () => cleanup(false);
+      const onOk = () => cleanup(true);
+      const onOverlayClick = (ev) => {
+        if (ev.target === overlay) cleanup(false);
+      };
+      const onEsc = (ev) => {
+        if (ev.key === 'Escape') cleanup(false);
+      };
+
+      btnCancel.addEventListener('click', onCancel);
+      btnOk.addEventListener('click', onOk);
+      overlay.addEventListener('click', onOverlayClick);
+      document.addEventListener('keydown', onEsc);
+      btnOk.focus();
+    });
   }
 
   async function parseJsonResponse(res, fallbackMessage) {
@@ -1556,7 +1703,7 @@
   }
 
   async function deleteUser(id, name) {
-    if (!confirm('Are you sure you want to delete "' + name + '"?')) return;
+    if (!(await showConfirmPopup('Are you sure you want to delete "' + name + '"?'))) return;
 
     try {
       const res = await fetch(BASE + '/api/users/' + id, { method: 'DELETE' });
@@ -1705,7 +1852,7 @@
   }
 
   async function deleteBookMaster(id, name) {
-    if (!confirm('Delete Book Master record "' + name + '"?')) return;
+    if (!(await showConfirmPopup('Delete Book Master record "' + name + '"?'))) return;
 
     try {
       const res = await fetch(BASE + '/api/book-master/' + id, { method: 'DELETE' });
@@ -1805,7 +1952,7 @@
   }
 
   async function deleteClassMaster(id, name) {
-    if (!confirm('Delete class/branch "' + name + '"?')) return;
+    if (!(await showConfirmPopup('Delete class/branch "' + name + '"?'))) return;
 
     try {
       const res = await fetch(BASE + '/api/class-master/' + id, { method: 'DELETE' });
@@ -1976,7 +2123,7 @@
   }
 
   async function deleteBook(id, name) {
-    if (!confirm('Are you sure you want to delete "' + name + '"?')) return;
+    if (!(await showConfirmPopup('Are you sure you want to delete "' + name + '"?'))) return;
 
     try {
       const res = await fetch(BASE + '/api/books/' + id, { method: 'DELETE' });
@@ -2229,7 +2376,7 @@
       return;
     }
 
-    if (!confirm('Are you sure you want to return "' + bookName + '"?')) return;
+    if (!(await showConfirmPopup('Are you sure you want to return "' + bookName + '"?'))) return;
 
     try {
       const res = await fetch(BASE + '/api/issued-books/' + id + '/return', {
@@ -2253,7 +2400,7 @@
   }
 
   async function deleteIssuedBook(id, bookName) {
-    if (!confirm('Are you sure you want to delete the issued record for "' + bookName + '"? This action cannot be undone.')) return;
+    if (!(await showConfirmPopup('Are you sure you want to delete the issued record for "' + bookName + '"? This action cannot be undone.'))) return;
 
     try {
       const res = await fetch(BASE + '/api/issued-books/' + id, { method: 'DELETE' });
